@@ -20,22 +20,22 @@
 
 
 /*hyper-parameters deep Neural Net training initialised with default values*/
-static double weightdecay = 1;
-static double momentum = 0; 
+static float weightdecay = 1;
+static float momentum = 0; 
 static int  maxEpochNum = 5; 
-static double initLR = 0.05; 
-static double minLR = 0.0001;
+static float initLR = 0.05; 
+static float minLR = 0.0001;
 static  int maxNumOfCGruns = 50;
-static double samplingRateHf = 0.3;
+static float samplingRateHf = 0.3;
 
 /*training data set and validation data set*/
 static int BATCHSAMPLES; //the number of samples to load into the DNN
-static double * inputData;
-static double * miniBatchforHF;
-static double * labelMat;
+static float * inputData;
+static float * miniBatchforHF;
+static float * labelMat;
 static int * labels;
 static int * minBatchLabels;
-static double * validationData;
+static float * validationData;
 static int * validationLabelIdx;
 static int trainingDataSetSize;
 static int validationDataSetSize;
@@ -62,7 +62,7 @@ void cleanString(char *Name){
 	if ((pos=strchr(Name, '\n')) != NULL)
 	    *pos = '\0';
 }
-void loadLabels(double *labelMat, int *labels,char*filepath,char *datatype){
+void loadLabels(float *labelMat, int *labels,char*filepath,char *datatype){
 	FILE *fp;
 	int i,c;
 	char *line = NULL;
@@ -97,7 +97,7 @@ void loadLabels(double *labelMat, int *labels,char*filepath,char *datatype){
 	fclose(fp);		
 }
 
-void loadMatrix(double *matrix,char *filepath, char *datatype){
+void loadMatrix(float *matrix,char *filepath, char *datatype){
 	FILE *fp;
 	int i;
 	char *line = NULL;
@@ -249,7 +249,7 @@ void parseCfg(char * filepath){
 		if (strcmp(token,"samplingRateHf")==0){
 			token = strtok(NULL," : ");
 			if ((pos=strchr(token, '\n')) != NULL){*pos = '\0';}
-			samplingRateHf = (double) strtod (token,NULL);
+			samplingRateHf = (float) strtod (token,NULL);
 			token = strtok(NULL," : ");
 			continue;
 		}
@@ -326,7 +326,7 @@ void parseCMDargs(int argc, char *argv[]){
 	   		++i;
 			//load the input batch for training
 			printf("parsing training data file \n");
-			inputData = malloc(sizeof(double)*(trainingDataSetSize*inputDim));
+			inputData = malloc(sizeof(float)*(trainingDataSetSize*inputDim));
 			loadMatrix(inputData,argv[i],"train");
 			printf("training samples from %s have been successfully loaded \n",argv[i]);
 			continue;
@@ -335,7 +335,7 @@ void parseCMDargs(int argc, char *argv[]){
 			++i;
 			//load the training labels or outputs in case of regression
 			printf("parsing training-labels file with trainingDataSize %d \n", trainingDataSetSize);
-			labelMat = malloc(sizeof(double)*(trainingDataSetSize*targetDim));
+			labelMat = malloc(sizeof(float)*(trainingDataSetSize*targetDim));
 			initialiseWithZero(labelMat,trainingDataSetSize*targetDim);
 			labels = malloc(sizeof(int)*(trainingDataSetSize));
 			loadLabels(labelMat,labels,argv[i],"train");
@@ -346,7 +346,7 @@ void parseCMDargs(int argc, char *argv[]){
 			++i;
 			//load the validation training samples 
 			printf("parsing validation-data file \n");
-			validationData = malloc (sizeof(double)*(validationDataSetSize*inputDim));
+			validationData = malloc (sizeof(float)*(validationDataSetSize*inputDim));
 			loadMatrix(validationData,argv[i],"validation");
 			printf("samples from validation file %s have been successfully loaded \n",argv[i]);
 			continue;
@@ -379,7 +379,7 @@ void loadMiniBatchintoANN(){
 	anndef->layerList[0]->feaElem->xfeatMat = miniBatchforHF;
 }
 /**load entire batch into the neural net**/
-void loadDataintoANN(double *samples, double *labelMat){
+void loadDataintoANN(float *samples, float *labelMat){
 	anndef->layerList[0]->feaElem->xfeatMat = samples;
 	anndef->labelMat = labelMat;
 }   
@@ -405,8 +405,8 @@ void setUpMinibatchforHF(ADLink anndef){
 	int minibatchSize =  (int)(samplingRateHf * BATCHSAMPLES);
 	printf( "BATCH SIZE %d ",minibatchSize);
  	if (miniBatchforHF == NULL){
- 		miniBatchforHF = malloc(sizeof(double)*(minibatchSize*inputDim));
- 		minBatchLabels = malloc(sizeof(double)*minibatchSize);
+ 		miniBatchforHF = malloc(sizeof(float)*(minibatchSize*inputDim));
+ 		minBatchLabels = malloc(sizeof(float)*minibatchSize);
  	}
 
  	int * randomIndices = malloc(sizeof(int)*BATCHSAMPLES);
@@ -428,15 +428,15 @@ void setUpForHF(ADLink anndef){
 		layer = anndef->layerList[i];
 		//set up structure to accumulate gradients
 		if (layer->traininfo->updatedWeightMat == NULL && layer->traininfo->updatedBiasMat == NULL){
-			layer->traininfo->updatedWeightMat = malloc(sizeof(double)*(layer->dim * layer->srcDim));
-			layer->traininfo->updatedBiasMat = malloc(sizeof(double)*(layer->dim));
+			layer->traininfo->updatedWeightMat = malloc(sizeof(float)*(layer->dim * layer->srcDim));
+			layer->traininfo->updatedBiasMat = malloc(sizeof(float)*(layer->dim));
 			initialiseWithZero(layer->traininfo->updatedWeightMat,layer->dim*layer->srcDim);
 			initialiseWithZero(layer->traininfo->updatedBiasMat,layer->dim);
 
 			assert(layer->traininfo->bestWeightParamsHF==NULL); 
 			assert( layer->traininfo->bestBiasParamsHF==NULL);
-			layer->traininfo->bestWeightParamsHF = malloc(sizeof(double)*(layer->dim * layer->srcDim));
-			layer->traininfo->bestBiasParamsHF = malloc(sizeof(double)*(layer->dim));
+			layer->traininfo->bestWeightParamsHF = malloc(sizeof(float)*(layer->dim * layer->srcDim));
+			layer->traininfo->bestBiasParamsHF = malloc(sizeof(float)*(layer->dim));
 			initialiseWithZero(layer->traininfo->bestWeightParamsHF,layer->dim*layer->srcDim);
 			initialiseWithZero(layer->traininfo->bestBiasParamsHF,layer->dim);
 			
@@ -447,16 +447,16 @@ void setUpForHF(ADLink anndef){
 			exit(0);
 		}
 		layer->cgInfo = malloc(sizeof(ConjuageGradientInfo));
-		layer->cgInfo->delweightsUpdate = malloc(sizeof(double)*(layer->dim*layer->srcDim));
-		layer->cgInfo->residueUpdateWeights = malloc(sizeof(double)*(layer->dim*layer->srcDim));
-		layer->cgInfo->searchDirectionUpdateWeights = malloc(sizeof(double)*(layer->dim*layer->srcDim));
+		layer->cgInfo->delweightsUpdate = malloc(sizeof(float)*(layer->dim*layer->srcDim));
+		layer->cgInfo->residueUpdateWeights = malloc(sizeof(float)*(layer->dim*layer->srcDim));
+		layer->cgInfo->searchDirectionUpdateWeights = malloc(sizeof(float)*(layer->dim*layer->srcDim));
 		initialiseWithZero(layer->cgInfo->delweightsUpdate,layer->dim*layer->srcDim);
 		initialiseWithZero(layer->cgInfo->residueUpdateWeights,layer->dim*layer->srcDim);
 		initialiseWithZero(layer->cgInfo->searchDirectionUpdateWeights,layer->dim*layer->srcDim);
 
-		layer->cgInfo->delbiasUpdate = malloc(sizeof(double)*layer->dim);
-		layer->cgInfo->searchDirectionUpdateBias = malloc(sizeof(double)*layer->dim);
-		layer->cgInfo->residueUpdateBias = malloc(sizeof(double)*layer->dim);
+		layer->cgInfo->delbiasUpdate = malloc(sizeof(float)*layer->dim);
+		layer->cgInfo->searchDirectionUpdateBias = malloc(sizeof(float)*layer->dim);
+		layer->cgInfo->residueUpdateBias = malloc(sizeof(float)*layer->dim);
 		initialiseWithZero(layer->cgInfo->delbiasUpdate,layer->dim);
 		initialiseWithZero(layer->cgInfo->residueUpdateBias,layer->dim);
 		initialiseWithZero(layer->cgInfo->searchDirectionUpdateBias,layer->dim);
@@ -464,9 +464,9 @@ void setUpForHF(ADLink anndef){
 
 		if (useGNMatrix){
 			layer->gnInfo = malloc (sizeof(GaussNewtonProductInfo));
-			layer->gnInfo->vweights = malloc(sizeof(double)*(layer->dim*layer->srcDim));
-			layer->gnInfo->vbiases = malloc(sizeof(double)* layer->dim);
-			layer->gnInfo->Ractivations  = malloc(sizeof(double)*(layer->dim*BATCHSAMPLES));
+			layer->gnInfo->vweights = malloc(sizeof(float)*(layer->dim*layer->srcDim));
+			layer->gnInfo->vbiases = malloc(sizeof(float)* layer->dim);
+			layer->gnInfo->Ractivations  = malloc(sizeof(float)*(layer->dim*BATCHSAMPLES));
 			initialiseWithZero(layer->gnInfo->vbiases,layer->dim);
 			initialiseWithZero(layer->gnInfo->vweights,layer->dim*layer->srcDim);
 			initialiseWithZero(layer->gnInfo->Ractivations,layer->dim*BATCHSAMPLES);
@@ -482,7 +482,7 @@ void reinitLayerFeaMatrices(ADLink anndef){
 		layer = anndef->layerList[i];
 		if (layer->feaElem->yfeatMat != NULL){
 			free(layer->feaElem->yfeatMat);
-			layer->feaElem->yfeatMat = (double *) malloc(sizeof(double)*(layer->dim*BATCHSAMPLES));
+			layer->feaElem->yfeatMat = (float *) malloc(sizeof(float)*(layer->dim*BATCHSAMPLES));
 			initialiseWithZero(layer->feaElem->yfeatMat,layer->dim*BATCHSAMPLES);
 			layer->feaElem->xfeatMat = (layer->src != NULL) ? layer->src->feaElem->yfeatMat : NULL;
 		}
@@ -495,7 +495,7 @@ void reinitLayerErrFeaMatrices(ADLink anndef){
 		layer = anndef->layerList[i];
 		if (layer->errElem->dxFeatMat != NULL){
 			free(layer->errElem->dxFeatMat);
-			layer->errElem->dxFeatMat = (double *) malloc(sizeof(double)* (BATCHSAMPLES*layer->srcDim));	
+			layer->errElem->dxFeatMat = (float *) malloc(sizeof(float)* (BATCHSAMPLES*layer->srcDim));	
 			initialiseWithZero(layer->errElem->dxFeatMat,layer->dim*BATCHSAMPLES);
 			if ( i!=0){
 			srcLayer = layer->src;
@@ -510,7 +510,7 @@ void initialiseErrElems(ADLink anndef){
 	for (i = 0; i < anndef->layerNum ;i++){
 		layer = anndef->layerList[i];
 		layer->errElem = (ERLink) malloc (sizeof(ErrElem));
-		layer->errElem->dxFeatMat = (double *) malloc(sizeof(double)* (BATCHSAMPLES*layer->srcDim));	
+		layer->errElem->dxFeatMat = (float *) malloc(sizeof(float)* (BATCHSAMPLES*layer->srcDim));	
 		if ( i!=0){
 			srcLayer = layer->src;
 			srcLayer->errElem->dyFeatMat = layer->errElem->dxFeatMat;
@@ -518,23 +518,23 @@ void initialiseErrElems(ADLink anndef){
 	}
 	
 }
-void initialiseWithZero(double *matrix, int dim){
+void initialiseWithZero(float *matrix, int dim){
 	int i;
 	for (i = 0; i< dim;i++){
 		*(matrix+i) = 0;
 	}
 }
 
-double drand(){	
-return (double) rand()/(RAND_MAX);
+float drand(){	
+return (float) rand()/(RAND_MAX);
 }
-double genrandWeight(double limit){
+float genrandWeight(float limit){
 	return  -limit + (2*limit)*drand()  ;
 }
 
-void initialiseBias(double *biasVec,int dim, int srcDim ,ActFunKind actfunc){
+void initialiseBias(float *biasVec,int dim, int srcDim ,ActFunKind actfunc){
 	int i;
-	double randm;
+	float randm;
 	for ( i = 0; i<dim;i++){
 		/* bengio;s proposal for a new type of initialisation to ensure 
 			the variance of error derivatives are comparable accross layers*/
@@ -548,9 +548,9 @@ void initialiseBias(double *biasVec,int dim, int srcDim ,ActFunKind actfunc){
 /*the srcDim determines the fan-in to the hidden and output units. The weights ae initialised 
 to be inversely proportional to the sqrt(fanin)
 */ 
-void initialiseWeights(double *weights,int dim,int srcDim, ActFunKind actfunc){
+void initialiseWeights(float *weights,int dim,int srcDim, ActFunKind actfunc){
 	int i,j;
-	double randm;
+	float randm;
 	//this is not an efficient way of doing but it allows better readibility
 	for (i = 0; i < dim; i++){
 		for(j = 0; j < srcDim;j++){
@@ -591,9 +591,9 @@ void initialiseLayer(LELink layer,int i, LELink srcLayer){
 	}
 	//initialise weights and biases: W is node by feadim Matrix 
 	numOfElems = (layer->dim) * (layer->srcDim);
-	layer-> weights = malloc(sizeof(double)*numOfElems);
+	layer-> weights = malloc(sizeof(float)*numOfElems);
 	assert(layer->weights!=NULL);
-	layer->bias = malloc(sizeof(double)*(layer->dim));
+	layer->bias = malloc(sizeof(float)*(layer->dim));
 	assert(layer->bias!=NULL);
 	//initialise weights of outer layer
 	if (i ==(numLayers-1)){
@@ -609,23 +609,23 @@ void initialiseLayer(LELink layer,int i, LELink srcLayer){
 	//initialise feaElems
 	layer->feaElem = (FELink) malloc(sizeof(FeaElem));
 	assert(layer->feaElem!=NULL);
-	layer->feaElem->yfeatMat = malloc(sizeof(double)*(layer->dim*BATCHSAMPLES));
+	layer->feaElem->yfeatMat = malloc(sizeof(float)*(layer->dim*BATCHSAMPLES));
 	initialiseWithZero(layer->feaElem->yfeatMat,layer->dim*BATCHSAMPLES);
 	layer->feaElem->xfeatMat = (srcLayer != NULL) ? srcLayer->feaElem->yfeatMat : NULL;
 	
 	//intialise traininfo and allocating extra memory for setting hooks
-	layer->traininfo = (TRLink) malloc(sizeof(TrainInfo) * sizeof(double)*(numOfElems*4));
+	layer->traininfo = (TRLink) malloc(sizeof(TrainInfo) * sizeof(float)*(numOfElems*4));
 	assert(layer->traininfo!= NULL);
-	layer->traininfo->dwFeatMat = malloc(sizeof(double)*numOfElems);
+	layer->traininfo->dwFeatMat = malloc(sizeof(float)*numOfElems);
 	initialiseWithZero(layer->traininfo->dwFeatMat,numOfElems);
-	layer->traininfo->dbFeaMat = malloc(sizeof(double)*layer->dim);
+	layer->traininfo->dbFeaMat = malloc(sizeof(float)*layer->dim);
 	initialiseWithZero(layer->traininfo->dbFeaMat,layer->dim);
 	layer->traininfo->updatedWeightMat = NULL;
 	layer->traininfo->updatedBiasMat = NULL;
 
 	if (momentum > 0) {
-		layer->traininfo->updatedWeightMat = malloc(sizeof(double)*numOfElems);
-		layer->traininfo->updatedBiasMat = malloc(sizeof(double)*(layer->dim));
+		layer->traininfo->updatedWeightMat = malloc(sizeof(float)*numOfElems);
+		layer->traininfo->updatedBiasMat = malloc(sizeof(float)*(layer->dim));
 		initialiseWithZero(layer->traininfo->updatedWeightMat,numOfElems);
 		initialiseWithZero(layer->traininfo->updatedBiasMat,layer->dim);
 	}
@@ -667,18 +667,18 @@ void initialise(){
 //-------------------------------------------------------------------------------------------------------------------
 /* this section of the code presents auxilary functions that are required*/
 //-------------------------------------------------------------------------------------------------------------------
-void copyMatrixOrVec(double *src, double *dest,int dim){
+void copyMatrixOrVec(float *src, float *dest,int dim){
 	#ifdef CBLAS
-	cblas_dcopy(dim, src, 1,dest, 1);
+	cblas_scopy(dim, src, 1,dest, 1);
 	#else
-	memcpy(dest,src,sizeof(double)*dim);		
+	memcpy(dest,src,sizeof(float)*dim);		
 	#endif
 }
 /* this function allows the addition of  two matrices or two vectors*/
-void addMatrixOrVec(double *weights, double *dwFeatMat,int dim, double lambda){
+void addMatrixOrVec(float *weights, float *dwFeatMat,int dim, float lambda){
 	//blas routine
 	#ifdef CBLAS
-		cblas_daxpy(dim,lambda,weights,1,dwFeatMat,1);
+		cblas_saxpy(dim,lambda,weights,1,dwFeatMat,1);
 	#else
 		int i;
 		for (i =0;i<dim;i++){
@@ -687,10 +687,10 @@ void addMatrixOrVec(double *weights, double *dwFeatMat,int dim, double lambda){
 	#endif	
 }
 /*multipy a vector or a matrix with a scalar*/
-void scaleMatrixOrVec(double* weightMat, double learningrate,int dim){
+void scaleMatrixOrVec(float* weightMat, float learningrate,int dim){
 	//blas routine
 	#ifdef CBLAS
-		cblas_dscal(dim,learningrate,weightMat,1);
+		cblas_sscal(dim,learningrate,weightMat,1);
 	#else
 		int i;
 		for (i =0;i<dim;i++){
@@ -700,10 +700,10 @@ void scaleMatrixOrVec(double* weightMat, double learningrate,int dim){
 }
 
 
-void subtractMatrix(double *dyfeat, double* labelMat, int dim, double lambda){
+void subtractMatrix(float *dyfeat, float* labelMat, int dim, float lambda){
 	//blas routine
 	#ifdef CBLAS
-		cblas_daxpy(dim,-lambda,labelMat,1,dyfeat,1);
+		cblas_saxpy(dim,-lambda,labelMat,1,dyfeat,1);
 	#else
 	//CPU version
 		int i;
@@ -713,11 +713,11 @@ void subtractMatrix(double *dyfeat, double* labelMat, int dim, double lambda){
 	#endif
 }
 
-double computeTanh(double x){
+float computeTanh(float x){
 	return 2*(computeSigmoid(2*x))-1;
 }
-double computeSigmoid(double x){
-	double result;
+float computeSigmoid(float x){
+	float result;
 	result = 1/(1+ exp(-x));
 	return result;
 }
@@ -728,8 +728,8 @@ double computeSigmoid(double x){
 /*computing non-linear activation*/
 void computeNonLinearActOfLayer(LELink layer){
 	int i,j ;
-	double sum;
-	double maximum;
+	float sum;
+	float maximum;
 
 	switch(layer->role){
 		case HIDDEN:
@@ -768,11 +768,11 @@ void computeNonLinearActOfLayer(LELink layer){
 						sum = 0;
 						maximum = 0;
 						for (j = 0; j<layer->dim;j++){
-							double value = layer->feaElem->yfeatMat[i*layer->dim+j];
+							float value = layer->feaElem->yfeatMat[i*layer->dim+j];
 							if (value>maximum) maximum = value;
 						}
 						for (j = 0; j<layer->dim;j++){
-							double value = layer->feaElem->yfeatMat[i*layer->dim+j];
+							float value = layer->feaElem->yfeatMat[i*layer->dim+j];
 							layer->feaElem->yfeatMat[i*layer->dim+j] = exp(value-maximum);
 							sum+= exp(value-maximum);
 						}
@@ -795,9 +795,9 @@ void computeLinearActivation(LELink layer){
 	#ifdef CBLAS
 		int i,off;
 		for (i = 0, off = 0; i < BATCHSAMPLES;i++, off += layer->dim){
-			cblas_dcopy(layer->dim, layer->bias, 1, layer->feaElem->yfeatMat + off, 1);
+			cblas_scopy(layer->dim, layer->bias, 1, layer->feaElem->yfeatMat + off, 1);
 		}
-		cblas_dgemm(CblasColMajor, CblasTrans, CblasNoTrans, layer->dim, BATCHSAMPLES, layer->srcDim, 1, layer->weights, layer->srcDim, layer->feaElem->xfeatMat, layer->srcDim, 1, layer->feaElem->yfeatMat, layer->dim);
+		cblas_sgemm(CblasColMajor, CblasTrans, CblasNoTrans, layer->dim, BATCHSAMPLES, layer->srcDim, 1, layer->weights, layer->srcDim, layer->feaElem->xfeatMat, layer->srcDim, 1, layer->feaElem->yfeatMat, layer->dim);
 		#endif
 }
 
@@ -841,16 +841,16 @@ void computeActivationOfOutputLayer(ADLink anndef){
 //------------------------------------------------------------------------------------------------------
 /*This section of the code implements the back-propation algorithm  to compute the error derivatives*/
 //-------------------------------------------------------------------------------------------------------
-void sumColsOfMatrix(double *dyFeatMat,double *dbFeatMat,int dim,int batchsamples){
+void sumColsOfMatrix(float *dyFeatMat,float *dbFeatMat,int dim,int batchsamples){
 	#ifdef CBLAS
 		int i;
-		double* ones = malloc (sizeof(double)*batchsamples);
+		float* ones = malloc (sizeof(float)*batchsamples);
 		for (i = 0; i<batchsamples;i++){
 			ones[i] = 1;
 		}
 		//multiply node by batchsamples with batchsamples by 1
 		#ifdef CBLAS
-		cblas_dgemv(CblasColMajor,CblasNoTrans, dim,batchsamples,1,dyFeatMat,dim,ones,1,0,dbFeatMat,1);
+		cblas_sgemv(CblasColMajor,CblasNoTrans, dim,batchsamples,1,dyFeatMat,dim,ones,1,0,dbFeatMat,1);
 		#endif
 		free (ones);
 	#endif
@@ -878,10 +878,10 @@ void computeActivationDrv (LELink layer){
 /**compute del^2L J where del^2L is the hessian of the cross-entropy softmax with respect to output acivations **/ 
 void computeLossHessSoftMax(LELink layer){
 	int i,j;
-	double *RactivationVec = malloc(sizeof(double)*layer->dim);
-	double *yfeatVec = malloc(sizeof(double)*layer->dim);
-	double *diaP = malloc(sizeof(double)*layer->dim*layer->dim);
-	double *result = malloc(sizeof(double)*layer->dim);
+	float *RactivationVec = malloc(sizeof(float)*layer->dim);
+	float *yfeatVec = malloc(sizeof(float)*layer->dim);
+	float *diaP = malloc(sizeof(float)*layer->dim*layer->dim);
+	float *result = malloc(sizeof(float)*layer->dim);
 	
 	// under the assumption then we call this function after we have already computed gradients then we might need to reset yfeatMat 
 	computeLinearActivation(layer);
@@ -896,12 +896,12 @@ void computeLossHessSoftMax(LELink layer){
 		copyMatrixOrVec(layer->feaElem->yfeatMat+i*(layer->dim),yfeatVec,layer->dim);
 		#ifdef CBLAS
 		//compute dia(yfeaVec - yfeacVec*yfeaVec)'
-		cblas_dgemm(CblasColMajor,CblasNoTrans,CblasNoTrans,layer->dim,layer->dim,1,-1,yfeatVec,layer->dim,yfeatVec,1,0,diaP,layer->dim);
+		cblas_sgemm(CblasColMajor,CblasNoTrans,CblasNoTrans,layer->dim,layer->dim,1,-1,yfeatVec,layer->dim,yfeatVec,1,0,diaP,layer->dim);
 		for (j = 0; j<layer->dim;j++){
 			diaP[j*(layer->dim+1)] += yfeatVec[j];
 		}
 		//multiple hessian of loss function of particular sample with Jacobian 
-		cblas_dgemv(CblasColMajor,CblasNoTrans,layer->dim,layer->dim,1,diaP,layer->dim,RactivationVec,1,0,result,1);
+		cblas_sgemv(CblasColMajor,CblasNoTrans,layer->dim,layer->dim,1,diaP,layer->dim,RactivationVec,1,0,result,1);
 		#endif
 		copyMatrixOrVec(result,layer->feaElem->yfeatMat+i*(layer->dim),layer->dim);
 		
@@ -955,35 +955,27 @@ void backPropBatch(ADLink anndef,Boolean doHessVecProd){
 		layer = anndef->layerList[i];
 		if (layer->role ==OUTPUT){
 			if(!doHessVecProd){
-				printf("reaches the correct place \n");
 				calcOutLayerBackwardSignal(layer,anndef);
 			}else{
 				if(useGNMatrix){
-					printf("reaches the INcorrect place \n");
 					printf("computing loss of hessian\n");
 					computeHessOfLossFunc(layer,anndef);
 					printf("finished computing loss of hessian\n");
-					
 				}
 			}
 
 			layer->errElem->dyFeatMat = layer->feaElem->yfeatMat;
-			//printf("label Mat \n");
-			//printMatrix(anndef->labelMat,BATCHSAMPLES,layer->dim);
-			//printf("batch samples %d \n", BATCHSAMPLES);
 			/**normalisation because the cost function is mean log-likelihood*/
-			scaleMatrixOrVec(layer->feaElem->yfeatMat,(double)1/BATCHSAMPLES,BATCHSAMPLES*layer->dim);
-			//printMatrix(layer->feaElem->yfeatMat,BATCHSAMPLES,layer->dim);
-			//exit(0);
+			scaleMatrixOrVec(layer->feaElem->yfeatMat,(float)1/BATCHSAMPLES,BATCHSAMPLES*layer->dim);
 		}else{
 			// from previous iteration dxfeat that is dyfeat now is dE/dZ.. computing dE/da
 			computeActivationDrv(layer); 
 		}
 		#ifdef CBLAS
 		//compute dxfeatMat: the result  should be an array [ b1 b2..] where b1 is one of dim srcDim
-		cblas_dgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, layer->srcDim, BATCHSAMPLES, layer->dim, 1, layer->weights, layer->srcDim, layer->errElem->dyFeatMat, layer->dim, 0,layer->errElem->dxFeatMat,layer->srcDim);
+		cblas_sgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, layer->srcDim, BATCHSAMPLES, layer->dim, 1, layer->weights, layer->srcDim, layer->errElem->dyFeatMat, layer->dim, 0,layer->errElem->dxFeatMat,layer->srcDim);
 		//compute derivative with respect to weights: the result  should be an array of array of [ n1 n2] where n1 is of length srcDim
-		cblas_dgemm(CblasColMajor, CblasNoTrans, CblasTrans, layer->srcDim, layer->dim, BATCHSAMPLES, 1, layer->feaElem->xfeatMat, layer->srcDim, layer->errElem->dyFeatMat, layer->dim, 0, layer->traininfo->dwFeatMat, layer->srcDim);
+		cblas_sgemm(CblasColMajor, CblasNoTrans, CblasTrans, layer->srcDim, layer->dim, BATCHSAMPLES, 1, layer->feaElem->xfeatMat, layer->srcDim, layer->errElem->dyFeatMat, layer->dim, 0, layer->traininfo->dwFeatMat, layer->srcDim);
 		sumColsOfMatrix(layer->errElem->dyFeatMat,layer->traininfo->dbFeaMat,layer->dim,BATCHSAMPLES);
 		#endif
 	}
@@ -994,10 +986,10 @@ void backPropBatch(ADLink anndef,Boolean doHessVecProd){
 void fillCache(LELink layer,int dim,Boolean weights){
 	#ifdef CBLAS
 	if (weights){
-		double* paramCache = (double *) getHook(layer->traininfo,1);
+		float* paramCache = (float *) getHook(layer->traininfo,1);
 		copyMatrixOrVec(layer->weights,paramCache,dim);
 	}else{
-		double* paramCache = (double *) getHook(layer->traininfo,2);
+		float* paramCache = (float *) getHook(layer->traininfo,2);
 		copyMatrixOrVec(layer->bias,paramCache,dim);
 	}
 	#endif
@@ -1018,14 +1010,14 @@ Boolean initialiseParameterCaches(ADLink anndef){
 	LELink layer;
 	for (i =(anndef->layerNum-1) ; i >=0; --i){
 		layer = anndef->layerList[i];
-		layer->bestweights = malloc(sizeof(double)*(layer->dim*layer->srcDim));
-		layer->bestBias = malloc(sizeof(double)*layer->dim);
+		layer->bestweights = malloc(sizeof(float)*(layer->dim*layer->srcDim));
+		layer->bestBias = malloc(sizeof(float)*layer->dim);
 	}	
 	printf("successfully intialised caches \n");
 	return TRUE;
 	 
 }
-void perfBinClassf(double *yfeatMat, double *predictions,int dataSize){
+void perfBinClassf(float *yfeatMat, float *predictions,int dataSize){
 	int i;
 	for (i = 0; i< dataSize;i++){
 		predictions[i] = yfeatMat[i]>0.5 ? 1 :0;
@@ -1033,9 +1025,9 @@ void perfBinClassf(double *yfeatMat, double *predictions,int dataSize){
 	}
 }
 /**compute the negative mean log likelihood of the training data**/
-double computeLogLikelihood(double* output, int batchsamples, int dim , int* labels){
+float computeLogLikelihood(float* output, int batchsamples, int dim , int* labels){
 	int i,index;
-	double lglikelihood = 0;
+	float lglikelihood = 0;
 
 	for (i = 0; i < batchsamples ;i++){
 		index =  labels[i];
@@ -1044,9 +1036,9 @@ double computeLogLikelihood(double* output, int batchsamples, int dim , int* lab
 	return -1*(lglikelihood/batchsamples);
 }
 /*The function finds the most active node in the output layer for each sample*/
-void findMaxElement(double *matrix, int row, int col, double *vec){
+void findMaxElement(float *matrix, int row, int col, float *vec){
 	int maxIdx, i, j;
-  	double maxVal;
+  	float maxVal;
  	for (i = 0; i < row; ++i) {
       maxIdx = 0;
       maxVal = matrix[i * col + 0];
@@ -1060,12 +1052,12 @@ void findMaxElement(double *matrix, int row, int col, double *vec){
    }
 }
 /** the function calculates the average error*/
-double updatateAcc(int *labels, LELink layer,int dataSize){
+float updatateAcc(int *labels, LELink layer,int dataSize){
 	int i, dim;
-	double holdingVal;
+	float holdingVal;
 	int accCount=0;
 	if (anndef->target==CLASSIFICATION){
-		double *predictions = malloc(sizeof(double)*dataSize);
+		float *predictions = malloc(sizeof(float)*dataSize);
 		if (layer->dim >1){
 			dim = layer->dim;
 			findMaxElement(layer->feaElem->yfeatMat,dataSize,dim,predictions);
@@ -1087,9 +1079,9 @@ double updatateAcc(int *labels, LELink layer,int dataSize){
 		}
 	}*/		
 		
-	return  (double) accCount/dataSize;
+	return  (float) accCount/dataSize;
 }
-void updateNeuralNetParams(ADLink anndef, double lrnrate, double momentum, double weightdecay){
+void updateNeuralNetParams(ADLink anndef, float lrnrate, float momentum, float weightdecay){
 	int i;
 	LELink layer;
 	for (i =(anndef->layerNum-1) ; i >=0; --i){
@@ -1117,8 +1109,8 @@ void updateNeuralNetParams(ADLink anndef, double lrnrate, double momentum, doubl
 	}
 		
 }
-void updateLearningRate(int currentEpochIdx, double *lrnrate){
-	double crtvaldiff;
+void updateLearningRate(int currentEpochIdx, float *lrnrate){
+	float crtvaldiff;
 	if (currentEpochIdx == 0) {
 		*lrnrate = initLR;
 	}else if (modelSetInfo !=NULL){
@@ -1131,7 +1123,7 @@ void updateLearningRate(int currentEpochIdx, double *lrnrate){
 	}
 }
 
-Boolean terminateSchedNotTrue(int currentEpochIdx,double lrnrate){
+Boolean terminateSchedNotTrue(int currentEpochIdx,float lrnrate){
 	if (currentEpochIdx == 0) return TRUE;
 	if (currentEpochIdx >=0 && currentEpochIdx >= maxEpochNum){
 		printf("Stoppped: max epoc has been reached \n");
@@ -1147,8 +1139,8 @@ Boolean terminateSchedNotTrue(int currentEpochIdx,double lrnrate){
 void TrainDNNGD(){
 	clock_t start = clock();
 	int currentEpochIdx;
-	double learningrate;
-	double min_validation_error ;
+	float learningrate;
+	float min_validation_error ;
 	
 	currentEpochIdx = 0;
 	learningrate = 0;
@@ -1160,9 +1152,9 @@ void TrainDNNGD(){
 	modelSetInfo->prevCrtVal = 0;
 
 	//array to store the  training errors and validation error
-	double * log_likelihood  = malloc(sizeof(double)*(maxEpochNum+1));
-	double * zero_one_errorTraining =  malloc(sizeof(double)*(maxEpochNum+1));
-	double * zero_one_error =  malloc(sizeof(double)*(maxEpochNum+1));
+	float * log_likelihood  = malloc(sizeof(float)*(maxEpochNum+1));
+	float * zero_one_errorTraining =  malloc(sizeof(float)*(maxEpochNum+1));
+	float * zero_one_error =  malloc(sizeof(float)*(maxEpochNum+1));
 	
 	//compute negative-loglikelihood of training data
 	printf("computing the mean negative log-likelihood of training data \n");
@@ -1256,7 +1248,7 @@ Ptr getHook(Ptr m,int incr){
   p = (Ptr *) m; p -=incr; return *p;
 }
 /** accumulate direction of steepest descent */
-void accumulateLayerGradient(LELink layer,double weight){
+void accumulateLayerGradient(LELink layer,float weight){
 	assert(layer->traininfo->updatedBiasMat != NULL);
 	assert(layer->traininfo->updatedWeightMat != NULL);
 	copyMatrixOrVec(layer->traininfo->dwFeatMat, layer->traininfo->updatedWeightMat,layer->srcDim*layer->dim);
@@ -1278,14 +1270,14 @@ void accumulateGradientsofANN(ADLink anndef){
 //----------------------------------------------------------------------------------------------------------------------------------
 void normOfWeights(ADLink anndef){
     int i;
-    double weightsum = 0;
-    double biasSum = 0 ;
+    float weightsum = 0;
+    float biasSum = 0 ;
     LELink layer;
     for (i = 0; i<anndef->layerNum;i++){
         layer = anndef->layerList[i];
 	#ifdef CBLAS
-        weightsum+= cblas_ddot(layer->dim*layer->srcDim,layer->weights,1,layer->weights,1);
-        biasSum += cblas_ddot(layer->dim,layer->bias,1,layer->bias,1);
+        weightsum+= cblas_sdot(layer->dim*layer->srcDim,layer->weights,1,layer->weights,1);
+        biasSum += cblas_sdot(layer->dim,layer->bias,1,layer->bias,1);
 	#endif
         
     }
@@ -1296,7 +1288,7 @@ void normOfWeights(ADLink anndef){
 void normaliseSearchDirections(ADLink anndef){
 	int i; 
 	LELink layer;
-	double dotProduct[] ={ 0,0};
+	float dotProduct[] ={ 0,0};
 	//computeSearchDirDotProduct(anndef,dotProduct);
 	for (i = 0; i<anndef->layerNum;i++){
 		layer = anndef->layerList[i];
@@ -1304,7 +1296,7 @@ void normaliseSearchDirections(ADLink anndef){
 		scaleMatrixOrVec(layer->cgInfo->searchDirectionUpdateBias, 1/sqrt(dotProduct[1]) ,layer->dim);
 	}	
 }
-void normaliseResidueDirections(ADLink anndef, double* magnitudeOfGradient){
+void normaliseResidueDirections(ADLink anndef, float* magnitudeOfGradient){
 	int i; 
 	LELink layer;
 	for (i = 0; i<anndef->layerNum;i++){
@@ -1316,14 +1308,14 @@ void normaliseResidueDirections(ADLink anndef, double* magnitudeOfGradient){
 }
 void computeNormOfGradient(ADLink anndef){
 	int i; 
-	double weightsum = 0;
-	double biasSum = 0 ;
+	float weightsum = 0;
+	float biasSum = 0 ;
 	LELink layer;
 	for (i = 0; i<anndef->layerNum;i++){
 		layer = anndef->layerList[i];
 		#ifdef CBLAS
-		weightsum+= cblas_ddot(layer->dim*layer->srcDim,layer->traininfo->dwFeatMat,1,layer->traininfo->dwFeatMat,1);
-		biasSum += cblas_ddot(layer->dim,layer->traininfo->dbFeaMat,1,layer->traininfo->dbFeaMat,1);
+		weightsum+= cblas_sdot(layer->dim*layer->srcDim,layer->traininfo->dwFeatMat,1,layer->traininfo->dwFeatMat,1);
+		biasSum += cblas_sdot(layer->dim,layer->traininfo->dbFeaMat,1,layer->traininfo->dbFeaMat,1);
 		#endif
 	
 	}
@@ -1331,14 +1323,14 @@ void computeNormOfGradient(ADLink anndef){
 }
 void computeNormOfAccuGradient(ADLink anndef){
 	int i; 
-	double weightsum = 0;
-	double biasSum = 0 ;
+	float weightsum = 0;
+	float biasSum = 0 ;
 	LELink layer;
 	for (i = 0; i<anndef->layerNum;i++){
 		layer = anndef->layerList[i];
 		#ifdef CBLAS
-		weightsum+= cblas_ddot(layer->dim*layer->srcDim,layer->traininfo->updatedWeightMat,1,layer->traininfo->updatedWeightMat,1);
-		biasSum += cblas_ddot(layer->dim,layer->traininfo->updatedBiasMat,1,layer->traininfo->updatedBiasMat,1);
+		weightsum+= cblas_sdot(layer->dim*layer->srcDim,layer->traininfo->updatedWeightMat,1,layer->traininfo->updatedWeightMat,1);
+		biasSum += cblas_sdot(layer->dim,layer->traininfo->updatedBiasMat,1,layer->traininfo->updatedBiasMat,1);
 		#endif
 	
 	}
@@ -1347,14 +1339,14 @@ void computeNormOfAccuGradient(ADLink anndef){
 
 void normOfVweights(ADLink anndef){
 	int i; 
-	double weightsum = 0;
-	double biasSum = 0 ;
+	float weightsum = 0;
+	float biasSum = 0 ;
 	LELink layer;
 	for (i = 0; i<anndef->layerNum;i++){
 		layer = anndef->layerList[i];
 		#ifdef CBLAS
-		weightsum+= cblas_ddot(layer->dim*layer->srcDim,layer->gnInfo->vweights,1,layer->gnInfo->vweights,1);
-		biasSum += cblas_ddot(layer->dim,layer->gnInfo->vbiases,1,layer->gnInfo->vbiases,1);
+		weightsum+= cblas_sdot(layer->dim*layer->srcDim,layer->gnInfo->vweights,1,layer->gnInfo->vweights,1);
+		biasSum += cblas_sdot(layer->dim,layer->gnInfo->vbiases,1,layer->gnInfo->vbiases,1);
 		#endif
 	
 	}
@@ -1387,14 +1379,14 @@ void printGVoutput(ADLink anndef){
 }
 void computeSearchDirDotProduct(ADLink anndef){
 	int i; 
-	double weightsum = 0;
-	double biasSum = 0 ;
+	float weightsum = 0;
+	float biasSum = 0 ;
 	LELink layer;
 	for (i = 0; i<anndef->layerNum;i++){
 		layer = anndef->layerList[i];
 		#ifdef CBLAS
-		weightsum+= cblas_ddot(layer->dim*layer->srcDim,layer->cgInfo->searchDirectionUpdateWeights,1,layer->cgInfo->searchDirectionUpdateWeights,1);
-		biasSum += cblas_ddot(layer->dim,layer->cgInfo->searchDirectionUpdateBias,1,layer->cgInfo->searchDirectionUpdateBias,1);
+		weightsum+= cblas_sdot(layer->dim*layer->srcDim,layer->cgInfo->searchDirectionUpdateWeights,1,layer->cgInfo->searchDirectionUpdateWeights,1);
+		biasSum += cblas_sdot(layer->dim,layer->cgInfo->searchDirectionUpdateBias,1,layer->cgInfo->searchDirectionUpdateBias,1);
 		#endif
 	
 	}
@@ -1460,15 +1452,15 @@ void displaydelWs(ADLink anndef){
 
 void normofGV(ADLink anndef){
 	int i;
-	double weightsum,biasSum;
+	float weightsum,biasSum;
 	weightsum =0;
 	biasSum =0; 
 	LELink layer;
 	for (i = 0; i<anndef->layerNum;i++){
 		layer = anndef->layerList[i];
 		#ifdef CBLAS
-		weightsum+= cblas_ddot(layer->dim*layer->srcDim,layer->traininfo->dwFeatMat,1,layer->traininfo->dwFeatMat,1);
-		biasSum += cblas_ddot(layer->dim,layer->traininfo->dbFeaMat,1,layer->traininfo->dbFeaMat,1);
+		weightsum+= cblas_sdot(layer->dim*layer->srcDim,layer->traininfo->dwFeatMat,1,layer->traininfo->dwFeatMat,1);
+		biasSum += cblas_sdot(layer->dim,layer->traininfo->dbFeaMat,1,layer->traininfo->dbFeaMat,1);
 		#endif
 	
 	}
@@ -1476,15 +1468,15 @@ void normofGV(ADLink anndef){
 }
 void normofDELW(ADLink anndef){
 	int i;
-	double weightsum,biasSum;
+	float weightsum,biasSum;
 	weightsum =0;
 	biasSum =0;
 	LELink layer;
 	for (i = 0; i<anndef->layerNum;i++){
 		layer = anndef->layerList[i];
 		#ifdef CBLAS
-		weightsum+= cblas_ddot(layer->dim*layer->srcDim,layer->cgInfo->delweightsUpdate,1,layer->cgInfo->delweightsUpdate,1);
-		biasSum += cblas_ddot(layer->dim,layer->cgInfo->delbiasUpdate,1,layer->cgInfo->delbiasUpdate,1);
+		weightsum+= cblas_sdot(layer->dim*layer->srcDim,layer->cgInfo->delweightsUpdate,1,layer->cgInfo->delweightsUpdate,1);
+		biasSum += cblas_sdot(layer->dim,layer->cgInfo->delbiasUpdate,1,layer->cgInfo->delbiasUpdate,1);
 		#endif
 	
 	}
@@ -1548,7 +1540,7 @@ void backtrackNeuralNetParamsCG(ADLink anndef){
 
 //-----------------------------------------------------------------------------------
 /**This section of the code implements the small sub routinesof the  conjugate Gradient algorithm **/
-void updateParameterDirection(ADLink anndef,double beta){
+void updateParameterDirection(ADLink anndef,float beta){
 	int i; 
 	LELink layer;
 	for (i = 0; i<anndef->layerNum;i++){
@@ -1587,10 +1579,10 @@ void updateResidue(ADLink anndef){
 		addMatrixOrVec(layer->traininfo->updatedBiasMat,layer->cgInfo->residueUpdateBias,layer->dim,1);
 	}	
 }
-double  computeQuadfun( ADLink anndef){
-	double obj_fun = 0;
-	double weightsum =0;
-	double biasSum = 0;
+float  computeQuadfun( ADLink anndef){
+	float obj_fun = 0;
+	float weightsum =0;
+	float biasSum = 0;
 	int i; 
 	LELink layer;
 	//compute (b+r_K)+x *-0.5
@@ -1599,8 +1591,8 @@ double  computeQuadfun( ADLink anndef){
 		addMatrixOrVec(layer->traininfo->updatedWeightMat,layer->cgInfo->residueUpdateWeights,layer->dim*layer->srcDim,1);
 		addMatrixOrVec(layer->traininfo->updatedBiasMat,layer->cgInfo->residueUpdateBias,layer->dim,1);
 		#ifdef CBLAS
-		weightsum+= cblas_ddot(layer->dim*layer->srcDim,layer->cgInfo->residueUpdateWeights,1,layer->cgInfo->delweightsUpdate,1);
-		biasSum += cblas_ddot(layer->dim,layer->cgInfo->residueUpdateBias,1,layer->cgInfo->delbiasUpdate,1);
+		weightsum+= cblas_sdot(layer->dim*layer->srcDim,layer->cgInfo->residueUpdateWeights,1,layer->cgInfo->delweightsUpdate,1);
+		biasSum += cblas_sdot(layer->dim,layer->cgInfo->residueUpdateBias,1,layer->cgInfo->delbiasUpdate,1);
 		#endif
 		addMatrixOrVec(layer->traininfo->updatedWeightMat,layer->cgInfo->residueUpdateWeights,layer->dim*layer->srcDim,-1);
 		addMatrixOrVec(layer->traininfo->updatedBiasMat,layer->cgInfo->residueUpdateBias,layer->dim,-1);
@@ -1610,7 +1602,7 @@ double  computeQuadfun( ADLink anndef){
 	return obj_fun;
 
 }	
-void updatedelParameters(double alpha){
+void updatedelParameters(float alpha){
 	int i; 
 	LELink layer;
 	for (i = 0; i<anndef->layerNum;i++){
@@ -1619,30 +1611,30 @@ void updatedelParameters(double alpha){
 		addMatrixOrVec(layer->cgInfo->searchDirectionUpdateBias,layer->cgInfo->delbiasUpdate,layer->dim,alpha);
 	}		
 }
-void computeSearchDirMatrixProduct( ADLink anndef,double * searchVecMatrixVecProductResult){
+void computeSearchDirMatrixProduct( ADLink anndef,float * searchVecMatrixVecProductResult){
 	int i; 
-	double weightsum = 0;
-	double biasSum = 0 ;
+	float weightsum = 0;
+	float biasSum = 0 ;
 	LELink layer;
 	for (i = 0; i<anndef->layerNum;i++){
 		layer = anndef->layerList[i];
 		#ifdef CBLAS
-		weightsum+= cblas_ddot(layer->dim*layer->srcDim,layer->cgInfo->searchDirectionUpdateWeights,1,layer->traininfo->dwFeatMat,1);
-		biasSum += cblas_ddot(layer->dim,layer->cgInfo->searchDirectionUpdateBias,1,layer->traininfo->dbFeaMat,1);
+		weightsum+= cblas_sdot(layer->dim*layer->srcDim,layer->cgInfo->searchDirectionUpdateWeights,1,layer->traininfo->dwFeatMat,1);
+		biasSum += cblas_sdot(layer->dim,layer->cgInfo->searchDirectionUpdateBias,1,layer->traininfo->dbFeaMat,1);
 		#endif
 	}	
  	*searchVecMatrixVecProductResult = weightsum + biasSum;
 }
-void computeResidueDotProduct(ADLink anndef, double * residueDotProductResult){
+void computeResidueDotProduct(ADLink anndef, float * residueDotProductResult){
 	int i; 
-	double weightsum = 0;
-	double biasSum = 0;
+	float weightsum = 0;
+	float biasSum = 0;
 	LELink layer;
 	for (i = 0; i<anndef->layerNum;i++){
 		layer = anndef->layerList[i];
 		#ifdef CBLAS
-		weightsum+= cblas_ddot(layer->dim*layer->srcDim,layer->cgInfo->residueUpdateWeights,1,layer->cgInfo->residueUpdateWeights,1);
-		biasSum += cblas_ddot(layer->dim,layer->cgInfo->residueUpdateBias,1,layer->cgInfo->residueUpdateBias,1);
+		weightsum+= cblas_sdot(layer->dim*layer->srcDim,layer->cgInfo->residueUpdateWeights,1,layer->cgInfo->residueUpdateWeights,1);
+		biasSum += cblas_sdot(layer->dim,layer->cgInfo->residueUpdateBias,1,layer->cgInfo->residueUpdateBias,1);
 		#endif
 	
 	}
@@ -1683,13 +1675,13 @@ void updateRactivations(LELink layer){
 /** this function compute \sum wji R(zi)-previous layer and adds it to R(zj)**/
 void computeRactivations(LELink layer){
 	int i,off;
-	double * buffer  = malloc (sizeof(double)* BATCHSAMPLES*layer->dim);
+	float * buffer  = malloc (sizeof(float)* BATCHSAMPLES*layer->dim);
 	initialiseWithZero(buffer, BATCHSAMPLES*layer->dim);
 	for (i = 0, off = 0; i < BATCHSAMPLES;i++, off += layer->dim){
 		copyMatrixOrVec(layer->bias,buffer,layer->dim);
 	}
 	#ifdef CBLAS
-		cblas_dgemm(CblasColMajor, CblasTrans, CblasNoTrans, layer->dim, BATCHSAMPLES, layer->srcDim, 1, layer->weights, layer->srcDim, layer->src->gnInfo->Ractivations, layer->srcDim, 1.0, buffer, layer->dim);
+		cblas_sgemm(CblasColMajor, CblasTrans, CblasNoTrans, layer->dim, BATCHSAMPLES, layer->srcDim, 1, layer->weights, layer->srcDim, layer->src->gnInfo->Ractivations, layer->srcDim, 1.0, buffer, layer->dim);
 	#endif
 	addMatrixOrVec(buffer, layer->gnInfo->Ractivations,BATCHSAMPLES*layer->dim, 1);
 	free(buffer);
@@ -1702,7 +1694,7 @@ void computeVweightsProjection(LELink layer){
 		copyMatrixOrVec(layer->gnInfo->vbiases,layer->gnInfo->Ractivations + off ,layer->dim);
 	}
 	#ifdef CBLAS
-		cblas_dgemm(CblasColMajor, CblasTrans, CblasNoTrans, layer->dim, BATCHSAMPLES, layer->srcDim, 1, layer->gnInfo->vweights, layer->srcDim, layer->feaElem->xfeatMat, layer->srcDim, 1, layer->gnInfo->Ractivations, layer->dim);
+		cblas_sgemm(CblasColMajor, CblasTrans, CblasNoTrans, layer->dim, BATCHSAMPLES, layer->srcDim, 1, layer->gnInfo->vweights, layer->srcDim, layer->feaElem->xfeatMat, layer->srcDim, 1, layer->gnInfo->Ractivations, layer->dim);
 	#endif
 }
 
@@ -1732,7 +1724,7 @@ void computeDirectionalErrDerivativeofANN(ADLink anndef){
 	}
 }
 /**given a vector in parameteric space, this function copies the the segment of the vector that aligns with the parameters of the given layer*/
-void setParameterDirections(double * weights, double* bias, LELink layer){
+void setParameterDirections(float * weights, float* bias, LELink layer){
 	assert(layer->gnInfo !=NULL);
 	initialiseWithZero(layer->gnInfo->vbiases,layer->dim);
 	initialiseWithZero(layer->gnInfo->vweights,layer->dim*layer->srcDim);
@@ -1769,18 +1761,18 @@ void initialiseResidueaAndSearchDirection(ADLink anndef){
 }
 void runConjugateGradient(){
 	int numberofRuns = 0;
-	double residueDotProductResult = 0;
-	double prevresidueDotProductResult = 0;
-	double searchVecMatrixVecProductResult = 0;
-	double alpha = 0;
-	double beta = 0;
-	double cost = 0;
-	double oldcost =0;
-	double minCost = DBL_MAX;
-	double obj_fun_value = DBL_MAX;
-	double old_fun_value = DBL_MAX;
+	float residueDotProductResult = 0;
+	float prevresidueDotProductResult = 0;
+	float searchVecMatrixVecProductResult = 0;
+	float alpha = 0;
+	float beta = 0;
+	float cost = 0;
+	float oldcost =0;
+	float minCost = DBL_MAX;
+	float obj_fun_value = DBL_MAX;
+	float old_fun_value = DBL_MAX;
 	int num  = maxNumOfCGruns/5;
-	double *costlist = malloc(sizeof(double)*num);
+	float *costlist = malloc(sizeof(float)*num);
 	initialiseWithZero(costlist,num);
 	int counter = 0;
 	int listcounter = 0;
@@ -1872,7 +1864,7 @@ void runConjugateGradient(){
 void TrainDNNHF(){
 	clock_t start = clock();
 	int currentEpochIdx;
-	double min_validation_error ;
+	float min_validation_error ;
 	
 	currentEpochIdx = 0;
 	min_validation_error = 1;
@@ -1883,9 +1875,9 @@ void TrainDNNHF(){
 	modelSetInfo->prevCrtVal = 0;
 
 	//array to store the  training errors and validation error
-	double * log_likelihood  = malloc(sizeof(double)*(maxEpochNum+1));
-	double * zero_one_errorTraining =  malloc(sizeof(double)*(maxEpochNum+1));
-	double * zero_one_error =  malloc(sizeof(double)*(maxEpochNum+1));
+	float * log_likelihood  = malloc(sizeof(float)*(maxEpochNum+1));
+	float * zero_one_errorTraining =  malloc(sizeof(float)*(maxEpochNum+1));
+	float * zero_one_error =  malloc(sizeof(float)*(maxEpochNum+1));
 	//compute negative-loglikelihood of training data
 	printf("computing the mean negative log-likelihood of training data \n");
 	loadDataintoANN(inputData,labelMat);
@@ -2110,7 +2102,7 @@ void printLayerMatrices(ADLink anndef){
 	}	
 }
 
-void printVector(double * vector , int dim){
+void printVector(float * vector , int dim){
 	int i ;
 	printf("[ ");
 	for (i = 0; i < dim; i++){
@@ -2119,7 +2111,7 @@ void printVector(double * vector , int dim){
 	printf("]\n ");
 }
 
-void printMatrix(double * matrix,int row,int col){
+void printMatrix(float * matrix,int row,int col){
 int k,j;
 int r = row;
 int c = col;
@@ -2172,10 +2164,10 @@ void printYfeat(ADLink anndef,int id){
 void UnitTest_computeGradientDotProd(){
 	int i,k,j; 
 	LELink layer;
-	double sum =0;
+	float sum =0;
 	for ( i  =0 ; i < anndef->layerNum; i++){
 		layer = anndef->layerList[i];
-		sum += cblas_ddot(layer->dim*layer->srcDim,layer->traininfo->updatedWeightMat, 1, layer->traininfo->updatedWeightMat,1);
+		sum += cblas_sdot(layer->dim*layer->srcDim,layer->traininfo->updatedWeightMat, 1, layer->traininfo->updatedWeightMat,1);
 
 	}
 	printf("dotproduct of cache gradient vector is %lf \n",sum);
@@ -2187,20 +2179,20 @@ void UnitTest_computeGradientDotProd(){
 void unitTests(){
 	//checking the implementation of doing products with the gauss newton matrix
 	
-	double  vweightsH[] ={0.775812455441121,0.598968296474700,0.557221023059154,0.299707632069582,0.547657254432423,0.991829829468103,0.483412970471810,0.684773696180478,0.480016831195868,0.746520774837809,0.211422430258003,0.248486726468514,0.0978390795725171,0.708670434511610,0.855745919278928,0.789034249923306,0.742842549759275,0.104522115223072,0.520874909265143,0.846632465315532,0.843613150651208,0.377747297699522,0.272095361461968,0.125303924302938,0.691352539306520,0.555131164040551,0.00847423194155961,0.416031807168918,0.439118205411470,0.784360645016731,0.829997491112413,0.589606438454759,0.142074038271687,0.593313383711502,0.726192799270104,0.428380358133696,0.210792055986133,0.265384268404268,0.993183755212665,0.480756369506705,0.827750131864470,0.603238265822881,0.817841681068066,0.955547170535556,0.650378193390669,0.627647346270778,0.646563331304311,0.0621331286917197,0.938196645878781,0.898716437594415,0.694859162934643,0.310406171229422,0.343545605630366,0.0762294431350499,0.519836940596257,0.608777321469077,0.727159960434458,7.39335770538752e-05,0.169766268796397,0.463291023631989,0.361852151271785,0.952065614552366,0.932193359196872,0.958068660798924,0.206538420408243,0.159700734052653,0.571760567030289,0.592919191548301,0.698610749870688,0.305813464081036,0.393851341078336,0.336885826085107,0.128993041260436,0.0869363561072062,0.548943348806040,0.317733245140830,0.992747576055697,0.723565253441235,0.572101390105790,0.717227171632155,0.976559227688336,0.426990558230810,0.913013771059024,0.897311254281181,0.835228567475913,0.0479581714127454,0.359280569413193,0.295753896108793,0.629125618231216,0.136183801688937,0.374045801279154,0.864781698209823,0.250273591941488,0.0295055785950556,0.999448971390378,0.605142675082282,0.244195121925386,0.438195271553610,0.735093567145817,0.557989092238218};	
-	double vbaisH[] ={0,0,0,0,0,0,0,0,0,0};
+	float  vweightsH[] ={0.775812455441121,0.598968296474700,0.557221023059154,0.299707632069582,0.547657254432423,0.991829829468103,0.483412970471810,0.684773696180478,0.480016831195868,0.746520774837809,0.211422430258003,0.248486726468514,0.0978390795725171,0.708670434511610,0.855745919278928,0.789034249923306,0.742842549759275,0.104522115223072,0.520874909265143,0.846632465315532,0.843613150651208,0.377747297699522,0.272095361461968,0.125303924302938,0.691352539306520,0.555131164040551,0.00847423194155961,0.416031807168918,0.439118205411470,0.784360645016731,0.829997491112413,0.589606438454759,0.142074038271687,0.593313383711502,0.726192799270104,0.428380358133696,0.210792055986133,0.265384268404268,0.993183755212665,0.480756369506705,0.827750131864470,0.603238265822881,0.817841681068066,0.955547170535556,0.650378193390669,0.627647346270778,0.646563331304311,0.0621331286917197,0.938196645878781,0.898716437594415,0.694859162934643,0.310406171229422,0.343545605630366,0.0762294431350499,0.519836940596257,0.608777321469077,0.727159960434458,7.39335770538752e-05,0.169766268796397,0.463291023631989,0.361852151271785,0.952065614552366,0.932193359196872,0.958068660798924,0.206538420408243,0.159700734052653,0.571760567030289,0.592919191548301,0.698610749870688,0.305813464081036,0.393851341078336,0.336885826085107,0.128993041260436,0.0869363561072062,0.548943348806040,0.317733245140830,0.992747576055697,0.723565253441235,0.572101390105790,0.717227171632155,0.976559227688336,0.426990558230810,0.913013771059024,0.897311254281181,0.835228567475913,0.0479581714127454,0.359280569413193,0.295753896108793,0.629125618231216,0.136183801688937,0.374045801279154,0.864781698209823,0.250273591941488,0.0295055785950556,0.999448971390378,0.605142675082282,0.244195121925386,0.438195271553610,0.735093567145817,0.557989092238218};	
+	float vbaisH[] ={0,0,0,0,0,0,0,0,0,0};
 
-	double  vweights0[] ={0.775812455441121,0.598968296474700,0.557221023059154,0.299707632069582,0.547657254432423,0.991829829468103,0.483412970471810,0.684773696180478,0.480016831195868,0.746520774837809,0.211422430258003,0.248486726468514,0.0978390795725171,0.708670434511610,0.855745919278928,0.789034249923306,0.742842549759275,0.104522115223072,0.520874909265143,0.846632465315532,0.843613150651208,0.377747297699522,0.272095361461968,0.125303924302938,0.691352539306520,0.555131164040551,0.00847423194155961,0.416031807168918,0.439118205411470,0.784360645016731,0.829997491112413,0.589606438454759,0.142074038271687,0.593313383711502,0.726192799270104,0.428380358133696,0.210792055986133,0.265384268404268,0.993183755212665,0.480756369506705,0.827750131864470,0.603238265822881,0.817841681068066,0.955547170535556,0.650378193390669,0.627647346270778,0.646563331304311,0.0621331286917197,0.938196645878781,0.898716437594415,0.694859162934643,0.310406171229422,0.343545605630366,0.0762294431350499,0.519836940596257,0.608777321469077,0.727159960434458,7.39335770538752e-05,0.169766268796397,0.463291023631989,0.361852151271785,0.952065614552366,0.932193359196872,0.958068660798924,0.206538420408243,0.159700734052653,0.571760567030289,0.592919191548301,0.698610749870688,0.305813464081036,0.393851341078336,0.336885826085107,0.128993041260436,0.0869363561072062,0.548943348806040,0.317733245140830,0.992747576055697,0.723565253441235,0.572101390105790,0.717227171632155,0.976559227688336,0.426990558230810,0.913013771059024,0.897311254281181,0.835228567475913,0.0479581714127454,0.359280569413193,0.295753896108793,0.629125618231216,0.136183801688937,0.374045801279154,0.864781698209823,0.250273591941488,0.0295055785950556,0.999448971390378,0.605142675082282,0.244195121925386,0.438195271553610,0.735093567145817,0.557989092238218};	
-	double vbaisO[] ={0,0,0,0,0,0,0,0,0,0};
+	float  vweights0[] ={0.775812455441121,0.598968296474700,0.557221023059154,0.299707632069582,0.547657254432423,0.991829829468103,0.483412970471810,0.684773696180478,0.480016831195868,0.746520774837809,0.211422430258003,0.248486726468514,0.0978390795725171,0.708670434511610,0.855745919278928,0.789034249923306,0.742842549759275,0.104522115223072,0.520874909265143,0.846632465315532,0.843613150651208,0.377747297699522,0.272095361461968,0.125303924302938,0.691352539306520,0.555131164040551,0.00847423194155961,0.416031807168918,0.439118205411470,0.784360645016731,0.829997491112413,0.589606438454759,0.142074038271687,0.593313383711502,0.726192799270104,0.428380358133696,0.210792055986133,0.265384268404268,0.993183755212665,0.480756369506705,0.827750131864470,0.603238265822881,0.817841681068066,0.955547170535556,0.650378193390669,0.627647346270778,0.646563331304311,0.0621331286917197,0.938196645878781,0.898716437594415,0.694859162934643,0.310406171229422,0.343545605630366,0.0762294431350499,0.519836940596257,0.608777321469077,0.727159960434458,7.39335770538752e-05,0.169766268796397,0.463291023631989,0.361852151271785,0.952065614552366,0.932193359196872,0.958068660798924,0.206538420408243,0.159700734052653,0.571760567030289,0.592919191548301,0.698610749870688,0.305813464081036,0.393851341078336,0.336885826085107,0.128993041260436,0.0869363561072062,0.548943348806040,0.317733245140830,0.992747576055697,0.723565253441235,0.572101390105790,0.717227171632155,0.976559227688336,0.426990558230810,0.913013771059024,0.897311254281181,0.835228567475913,0.0479581714127454,0.359280569413193,0.295753896108793,0.629125618231216,0.136183801688937,0.374045801279154,0.864781698209823,0.250273591941488,0.0295055785950556,0.999448971390378,0.605142675082282,0.244195121925386,0.438195271553610,0.735093567145817,0.557989092238218};	
+	float vbaisO[] ={0,0,0,0,0,0,0,0,0,0};
 
-	double data[] ={0.254790156597005,0.224040030824219,0.667832727013717,0.844392156527205,0.344462411301042,0.780519652731358,0.675332065747000,0.00671531431847749,0.602170487581795,0.386771194520985,0.915991244131425,0.00115105712910724,0.462449159242329,0.424349039815375,0.460916366028964,0.770159728608609,0.322471807186779,0.784739294760742,0.471357153710612,0.0357627332691179};
+	float data[] ={0.254790156597005,0.224040030824219,0.667832727013717,0.844392156527205,0.344462411301042,0.780519652731358,0.675332065747000,0.00671531431847749,0.602170487581795,0.386771194520985,0.915991244131425,0.00115105712910724,0.462449159242329,0.424349039815375,0.460916366028964,0.770159728608609,0.322471807186779,0.784739294760742,0.471357153710612,0.0357627332691179};
 	
 
-	double lab[] ={4,1};
-	labels = malloc(sizeof(double)*2);
+	float lab[] ={4,1};
+	labels = malloc(sizeof(float)*2);
 	labels[0] =4;
 	labels[1] =1;
-	double labmat[] ={0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0};
+	float labmat[] ={0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0};
 	
 	numLayers = 2;
 	hidUnitsPerLayer = malloc(sizeof(int)*numLayers);
@@ -2225,7 +2217,7 @@ void unitTests(){
 	anndef->layerList[0]->feaElem->xfeatMat = data;
 	anndef->labelMat = labmat;
 
-	double Weight [] ={-0.33792351, 0.13376346, -0.06821584,0.31259467,0.30669813, -0.24911232,-0.24487114,0.3306844, 0.50186652,0.41181357,-0.15575338,0.00109011,0.20097358,0.2330034,-0.14213318,0.06703706, 0.00337744, -0.53263998,0.29886659,0.41916242,-0.14800999,0.12641018, -0.46514654, -0.1436961, 0.47448121,0.16582645,-0.11260893,0.31628802, -0.20064598,0.07459834, 0.4043588,-0.06991851,0.33098616, -0.39023389,0.22375668,0.22410759,-0.30804781,0.46541917 ,-0.06338163,0.44838317,-0.48220484, -0.34584617, -0.49584745,0.19157248,0.10365625,0.03648946,-0.50026342,0.06729657, -0.18658887,0.00325,-0.42514847,0.11742482,0.07223874, -0.5403129, 0.12865095,0.451458, 0.31825324,0.53904824,0.50259215,0.31983069,-0.23524579,0.13683939, -0.02399704, -0.33337114, -0.12891477, -0.48870689,-0.05296651,0.52800974, -0.41195013, -0.41694734, 0.26128892,0.09563634, -0.031075, -0.43037101, -0.2966262, 0.4381399,-0.09119193,0.03927353, -0.54092147, -0.21838607,-0.06913007,0.12285307,0.45811304,0.13773762,0.22565903,-0.38358795,0.26954896,0.36259999,0.14648924, -0.06757814,-0.38058746,0.07493898,0.03091815,0.49451543, -0.02151544,0.00280386, 0.04039804,0.34966835, -0.48515551,0.18559222};
+	float Weight [] ={-0.33792351, 0.13376346, -0.06821584,0.31259467,0.30669813, -0.24911232,-0.24487114,0.3306844, 0.50186652,0.41181357,-0.15575338,0.00109011,0.20097358,0.2330034,-0.14213318,0.06703706, 0.00337744, -0.53263998,0.29886659,0.41916242,-0.14800999,0.12641018, -0.46514654, -0.1436961, 0.47448121,0.16582645,-0.11260893,0.31628802, -0.20064598,0.07459834, 0.4043588,-0.06991851,0.33098616, -0.39023389,0.22375668,0.22410759,-0.30804781,0.46541917 ,-0.06338163,0.44838317,-0.48220484, -0.34584617, -0.49584745,0.19157248,0.10365625,0.03648946,-0.50026342,0.06729657, -0.18658887,0.00325,-0.42514847,0.11742482,0.07223874, -0.5403129, 0.12865095,0.451458, 0.31825324,0.53904824,0.50259215,0.31983069,-0.23524579,0.13683939, -0.02399704, -0.33337114, -0.12891477, -0.48870689,-0.05296651,0.52800974, -0.41195013, -0.41694734, 0.26128892,0.09563634, -0.031075, -0.43037101, -0.2966262, 0.4381399,-0.09119193,0.03927353, -0.54092147, -0.21838607,-0.06913007,0.12285307,0.45811304,0.13773762,0.22565903,-0.38358795,0.26954896,0.36259999,0.14648924, -0.06757814,-0.38058746,0.07493898,0.03091815,0.49451543, -0.02151544,0.00280386, 0.04039804,0.34966835, -0.48515551,0.18559222};
 
 
 	printf("input data >>>>>\n");
@@ -2266,7 +2258,7 @@ void unitTests(){
 	printMatrix(anndef->layerList[1]->gnInfo->vbiases,1,10);
 	*/
 	fwdPassOfANN(anndef);
-	//double loglik =computeLogLikelihood(anndef->layerList[numLayers-1]->feaElem->yfeatMat,BATCHSAMPLES,anndef->layerList[numLayers-1]->dim,lab);	
+	//float loglik =computeLogLikelihood(anndef->layerList[numLayers-1]->feaElem->yfeatMat,BATCHSAMPLES,anndef->layerList[numLayers-1]->dim,lab);	
 	//printf("log like %lf\n>>>>",loglik);
 	printf("Computing derivative  >>>>>>>>>>>>>>>\n");
 	
@@ -2324,14 +2316,15 @@ int main(int argc, char *argv[]){
 	parseCMDargs(argc, argv);
 	//exit(0);
 	initialise();
-	double  * W = malloc(sizeof(double )*784*10);
-	for (int i =0 ; i< 784*10;i++){
+	
+	float  * W = malloc(sizeof(float )*784*500);
+	for (int i =0 ; i< 784*500;i++){
 		W[i] = 0.03; 
 	
 	} 
-	
-	copyMatrixOrVec(W,anndef->layerList[0]->weights,anndef->layerList[0]->dim*anndef->layerList[0]->srcDim);
-    
+	free(W);
+	//copyMatrixOrVec(W,anndef->layerList[0]->weights,anndef->layerList[0]->dim*anndef->layerList[0]->srcDim);
+    /*
     loadDataintoANN(inputData,labelMat);
 	normOfWeights(anndef);
 	fwdPassOfANN(anndef);
@@ -2357,6 +2350,7 @@ int main(int argc, char *argv[]){
 	
 
 	exit(0);
+	*/
 	//initialise();
 	
 
