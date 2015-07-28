@@ -45,11 +45,11 @@ float prevCrtVal;
 /**this struct stores the search directions,residues and dw for each iteration of CG**/
 typedef struct _ConjugateGradientInfo{
    NMatrix * delweightsUpdate;
-   NMatrix * delbiasUpdate;
+   NFVector * delbiasUpdate;
    NMatrix * residueUpdateWeights;
-   NMatrix * residueUpdateBias;
+   NFVector * residueUpdateBias;
    NMatrix * searchDirectionUpdateWeights;
-   NMatrix * searchDirectionUpdateBias;
+   NFVector * searchDirectionUpdateBias;
  }ConjuageGradientInfo;
 
 
@@ -57,17 +57,17 @@ typedef struct _ConjugateGradientInfo{
 /** this struct stores the directional error derivatives with respect to weights and biases**/
 typedef struct _GaussNewtonProdInfo{
 	NMatrix * vweights;
-   	NMatrix * vbiases;
+   	NFVector * vbiases;
    	NMatrix * Ractivations;
 }GaussNewtonProductInfo ;
 
 typedef struct _TrainInfo{
 	NMatrix * dwFeatMat; /* dE/dw matrix*/
-	NMatrix * dbFeaMat; /* dE/db  vector */
+	NFVector * dbFeaMat; /* dE/db  vector */
 	NMatrix * updatedWeightMat; /* stores the velocity in the weight space or accumulates  gradeints of weights*/
-	NMatrix * updatedBiasMat;/* stores the velocity in the bias space  or accumulates gradients of biases*/
+	NFVector * updatedBiasMat;/* stores the velocity in the bias space  or accumulates gradients of biases*/
 	NMatrix * bestWeightParamsHF;
-	NMatrix * bestBiasParamsHF;
+	NFVector * bestBiasParamsHF;
 }TrainInfo;
 
 typedef struct _ErrorElem{
@@ -89,14 +89,14 @@ typedef struct _LayerElem{
 	LELink src; /* pointer to the input layer */
 	int srcDim; /* the number of units in the input layer */
 	NMatrix * weights;/* the weight matrix of the layer should number of nodes by input dim*/
-	NMatrix * bias; /* the bias vector */
+	NFVector * bias; /* the bias vector */
 	FELink feaElem; /* stores the  input activations coming into the layer as well the output activations going out from the layer */
 	ERLink errElem;
 	TRLink traininfo;/*struct that stores the error derivatives with respect to weights and biases */
 	GNProdInfo gnInfo;
 	CGInfo  cgInfo;
 	NMatrix * bestweights;
-	NMatrix * bestBias;
+	NFVector * bestBias;
 }LayerElem;
 
 /*structure for ANN*/
@@ -112,8 +112,8 @@ typedef struct _ANNdef{
 /**This section of the code deals with parsing Command Line arguments**/
 //-------------------------------------------------------------------------------------------------------------------
 void cleanString(char *Name);
-void loadLabels(NMatrix labelMat, int *labels,char*filepath,char *datatype);
-void loadMatrix(NMatrix matrix,char *filepath, char *datatype);
+void loadLabels(NMatrix *labelMat, NIntVector *labels,char*filepath,char *datatype);
+void loadMatrix(NMatrix * matrix,char *filepath, char *datatype);
 void parseCfg(char * filepath);
 void parseCMDargs(int argc, char *argv[]);
 
@@ -125,7 +125,7 @@ void setBatchSize(int sampleSize);
 void setBatchSizetoHFminiBatch();
 void loadMiniBatchintoANN();
 /**load entire batch into the neural net**/
-void loadDataintoANN(NMatrix samples, NMatrix labels);
+void loadDataintoANN(NMatrix* samples, NMatrix * labels);
 
 //-------------------------------------------------------------------------------------------------------------------
 /**this section of the src code deals with initialisation of ANN **/
@@ -136,29 +136,49 @@ void setUpForHF(ADLink anndef);
 void reinitLayerFeaMatrices(ADLink anndef);
 void reinitLayerErrFeaMatrices(ADLink anndef);
 void initialiseErrElems(ADLink anndef);
-void initialiseWithZero(NMatrix  matrix, int dim);
 float drand();
 float genrandWeight(float limit);
-void initialiseBias(NMatrix biasVec,int dim, int srcDim,ActFunKind actfunc);
 /*the srcDim determines the fan-in to the hidden and output units. The weights ae initialised 
 to be inversely proportional to the sqrt(fanin)
 */ 
-void initialiseWeights(NMatrix weightMat,int length,int srcDim,ActFunKind actfunc);
+void initialiseWeights(NMatrix * weightMat,int length,int srcDim,ActFunKind actfunc);
 void initialiseLayer(LELink layer,int i, LELink srcLayer);
 void  initialiseDNN();
 void initialise();
 
 //-------------------------------------------------------------------------------------------------------------------
+/* this section of the code presents code that creates matrices in host and device(In case of GPU computing)*/
+//-------------------------------------------------------------------------------------------------------------------
+NMatrix * CreateMatrix(int row , int col);
+NFVector * CreateFloatVec( int len);
+NIntVector * CreateIntVec( int len);
+void DisposeMatrix(NMatrix *matrix);
+void DisposeFloatVec(NFVector *vector);
+void DisposeIntVec(NIntVector *vector);
+void initialiseWithZeroMatrix(NMatrix * matrix, int dim,size_t size);
+void initialiseWithZeroFVector(NFVector * matrix, int dim,size_t size);
+void initialiseWithZeroIVector(NIntVector * matrix, int dim,size_t size);
+
+//-------------------------------------------------------------------------------------------------------------------
 /* this section of the code presents auxilary functions that are required*/
 //-------------------------------------------------------------------------------------------------------------------
-/**this funciton copies one matrix/array into another*/
-void copyMatrixOrVec(NMatrix src, NMatrix dest,int dim);
+void CopyMatrix (NMatrix *src,int lstartpos, NMatrix *dest,int rstartpos,int dim);
+void CopyVec (NFVector *src,int lstartpos, NFVector *dest,int rstartpos,int dim);
+void CopyVecToMat (NFVector *src,int lstartpos, NMatrix *dest,int rstartpos,int dim);
+void CopyMatrixToVec (NMatrix *src,int lstartpos, NFVector *dest,int rstartpos,int dim);
+
 /* this function allows the addition of  two matrices or two vectors*/
-void addMatrixOrVec(NMatrix weightMat, NMatrix   dwFeatMat, int dim,float lambda);
-void scaleMatrixOrVec(NMatrix   weightMat, float learningrate,int dim);
-void subtractMatrix(NMatrix dyfeat, NMatrix   labels, int dim, float lambda);
+void addMatrix(NMatrix * weights, NMatrix * dwFeatMat,int dim, float lambda);
+void addVec(NFVector * weights, NFVector * dwFeatMat,int dim, float lambda);
+void scaleMatrix(NMatrix * Mat, float scale ,int dim);
+void scaleVec(NFVector * Mat, float scale ,int dim);
+void subtractMatrix(NMatrix *dyfeat, NMatrix* labelMat, int dim, float lambda);
 float computeTanh(float x);
 float computeSigmoid(float x);
+void HNBlasNNgemm(int srcDim, int batchsamples, int dim, float alpha, NMatrix *weights, NMatrix *dyFeatMat, float beta, NMatrix *dxFeatMat);
+void HNBlasNTgemm(int srcDim, int dim,  int batchsamples, float alpha , NMatrix* xfeatMat, NMatrix * dyFeatMat, float beta, NMatrix * dwFeatMat);
+float computeDotProductMatrix(NMatrix * vectorL, NMatrix * vectorR,int dim);
+float computeDotProductVector(NFVector * vectorL, NFVector * vectorR,int dim);
 
 //-------------------------------------------------------------------------------------------------------------------
 /*this section of the code implements the  forward propagation of a deep neural net **/
@@ -166,13 +186,12 @@ float computeSigmoid(float x);
 void computeNonLinearActOfLayer(LELink layer);
 /* Yfeat is batchSamples by nodeNum matrix(stored as row major)  = X^T(row-major)-batch samples by feaMat * W^T(column major) -feaMat By nodeNum */
 void computeLinearActivation(LELink layer);
-void loadDataintoANN(NMatrix samples, NMatrix labels);
 void fwdPassOfDNN(ADLink anndef);
 void computeActivationOfOutputLayer(ADLink anndef);
 //------------------------------------------------------------------------------------------------------
 /*This section of the code implements the back-propation algorithm  to compute the error derivatives*/
 //-------------------------------------------------------------------------------------------------------
-void sumColsOfMatrix(NMatrix dyFeatMat,NMatrix dbFeatMat,int dim,int batchsamples);
+void sumColsOfMatrix(NMatrix *dyFeatMat,NFVector *dbFeatMat,int dim,int batchsamples);
 void computeActivationDrv (LELink layer);
 /**compute del^2L J where del^2L is the hessian of the cross-entropy softmax with respect to output acivations **/ 
 void computeLossHessSoftMax(LELink layer);
@@ -185,17 +204,16 @@ void backPropBatch(ADLink anndef,Boolean doHessVecProd);
 //------------------------------------------------------------------------------------------------------
 /*This section implements gradient descent learning net**/
 //------------------------------------------------------------------------------------------------------
-void fillCache(LELink layer,int dim,Boolean weights);
 void cacheParameters(ADLink anndef);
 Boolean initialiseParameterCaches(ADLink anndef);
-void perfBinClassf(NMatrix yfeatMat, NMatrix predictions,int dataSize);
-float computeLogLikelihood(NMatrix   output, int batchsamples, int dim , int* labels);
+void perfBinClassf(NMatrix *yfeatMat, int *predictions,int dataSize);
+float computeLogLikelihood(NMatrix  *  output, int batchsamples, int dim , NIntVector * labels);
 /*The function finds the most active node in the output layer for each sample*/
-void findMaxElement(NMatrix matrix, int row, int col, NMatrix vec);
+void findMaxElement(float * matrix, int row, int col, int * vec);
 /** the function calculates the percentage of the data samples correctly labelled by the DNN*/
-float updatateAcc(int *labels, LELink layer,int dataSize);
+float updatateAcc(NIntVector * labels, LELink layer,int dataSize);
 void updateNeuralNetParams(ADLink anndef, float lrnrate, float momentum, float weightdecay);
-void updateLearningRate(int currentEpochIdx, NMatrix lrnRate);
+void updateLearningRate(int currentEpochIdx, float * lrnRate);
 Boolean terminateSchedNotTrue(int currentEpochIdx,float lrnrate);
 void TrainDNNGD();
 
@@ -212,7 +230,7 @@ void accumulateGradientsofANN(ADLink anndef);
 //------------------------------------------------------------------------------------------------------
 void normOfWeights(ADLink anndef);
 void normaliseSearchDirections(ADLink anndef);
-void normaliseResidueDirections(ADLink anndef, NMatrix   magnitudeOfGradient);
+void normaliseResidueDirections(ADLink anndef, float * magnitudeOfGradient);
 void computeNormOfGradient(ADLink anndef);
 void computeNormOfAccuGradient(ADLink anndef);
 void normOfVweights(ADLink anndef);
@@ -240,8 +258,8 @@ void updateParameterDirection(ADLink anndef,float beta);
 void updateResidue(ADLink anndef);
 float  computeQuadfun( ADLink anndef);
 void updatedelParameters(float alpha);
-void computeSearchDirMatrixProduct( ADLink anndef,NMatrix  searchVecMatrixVecProductResult);
-void computeResidueDotProduct(ADLink anndef, NMatrix  residueDotProductResult);
+void computeSearchDirMatrixProduct( ADLink anndef, float * searchVecMatrixVecProductResult);
+void computeResidueDotProduct(ADLink anndef, float * residueDotProductResult);
 void addTikhonovDamping(ADLink anndef);
 //------------------------------------------------------
 /* the following routines compute the directional derivative using forward differentiation*/
@@ -250,7 +268,7 @@ void computeRactivations(LELink layer);
 void computeVweightsProjection(LELink layer);
 void computeDirectionalErrDrvOfLayer(LELink layer, int layerid);
 void computeDirectionalErrDerivativeofANN(ADLink anndef);
-void setParameterDirections(NMatrix  weights, NMatrix   bias, LELink layer);
+void setParameterDirections(NMatrix * weights, NFVector *  bias, LELink layer);
 void setSearchDirectionCG(ADLink anndef, Boolean Parameter);
 //-----------------------------------------------------
 void initialiseResidueaAndSearchDirection(ADLink anndef);
@@ -264,11 +282,12 @@ void TrainDNNHF();
 void freeMemoryfromANN();
 void printLayerMatrices(ADLink anndef);
 void printLayerDWMatrices(ADLink anndef);
-void printVector(NMatrix  vector , int dim);
+void printArray(float * vector , int dim);
+void printVector(NFVector * vector , int dim);
 void UnitTest_computeGradientDotProd();
 void printWeights(ADLink anndef, int i);
 void printYfeat(ADLink anndef, int id);
-void printMatrix(NMatrix matrix,int row,int col);
+void printMatrix(NMatrix * matrix,int row,int col);
 void printDBWeights(ADLink anndef, int i);
 
 /*This function is used to check the correctness of various routines */

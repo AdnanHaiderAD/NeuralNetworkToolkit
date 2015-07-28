@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <float.h>
+#include "/Users/adnan/NeuralNetworkToolkit/Cuda/ANNCUDA.h"
 
 #ifndef M_PI
 	#define M_PI 3.14159265358979323846
@@ -38,7 +39,7 @@ static NMatrix * inputData;
 static NMatrix * miniBatchforHF;
 static NMatrix * labelMat;
 static NIntVector * labels;
-static int * minBatchLabels;
+static NIntVector* minBatchLabels;
 static NMatrix * validationData;
 static NIntVector * validationLabelIdx;
 static int trainingDataSetSize;
@@ -339,8 +340,8 @@ void parseCMDargs(int argc, char *argv[]){
 	   		++i;
 			//load the input batch for training
 			printf("parsing training data file \n");
-			CreateMatrix(inputData,trainingDataSetSize,inputDim);
-			initialiseWithZero(inputData,trainingDataSetSize*inputDim,sizeof(float)*trainingDataSetSize*inputDim);
+			inputData = CreateMatrix(trainingDataSetSize,inputDim);
+			initialiseWithZeroMatrix(inputData,trainingDataSetSize*inputDim,sizeof(float)*trainingDataSetSize*inputDim);
 			loadMatrix(inputData,argv[i],"train");
 			printf("training samples from %s have been successfully loaded \n",argv[i]);
 			continue;
@@ -349,11 +350,11 @@ void parseCMDargs(int argc, char *argv[]){
 			++i;
 			//load the training labels or outputs in case of regression
 			printf("parsing training-labels file with trainingDataSize %d \n", trainingDataSetSize);
-			CreateMatrix(labelMat,trainingDataSetSize,targetDim);
-			initialiseWithZero(labelMat,trainingDataSetSize*targetDim, sizeof(float)*trainingDataSetSize*targetDim);
+			labelMat = CreateMatrix(trainingDataSetSize,targetDim);
+			initialiseWithZeroMatrix(labelMat,trainingDataSetSize*targetDim, sizeof(float)*trainingDataSetSize*targetDim);
 			
-			CreateIntVec(labels,trainingDataSetSize);
-			initialiseWithZero(labels,trainingDataSetSize,sizeof(int)*trainingDataSetSize);
+			labels = CreateIntVec(trainingDataSetSize);
+			initialiseWithZeroIVector(labels,trainingDataSetSize,sizeof(int)*trainingDataSetSize);
 			loadLabels(labelMat,labels,argv[i],"train");
 			printf("training labels from %s have been successfully loaded \n",argv[i]);
 			continue;
@@ -362,8 +363,8 @@ void parseCMDargs(int argc, char *argv[]){
 			++i;
 			//load the validation training samples 
 			printf("parsing validation-data file \n");
-			CreateMatrix(validationData,validationDataSetSize,inputDim);
-			initialiseWithZero(validationData,validationDataSetSize*inputDim,sizeof(float)*validationDataSetSize*inputDim);
+			validationData = CreateMatrix(validationDataSetSize,inputDim);
+			initialiseWithZeroMatrix(validationData,validationDataSetSize*inputDim,sizeof(float)*validationDataSetSize*inputDim);
 			loadMatrix(validationData,argv[i],"validation");
 			printf("samples from validation file %s have been successfully loaded \n",argv[i]);
 			continue;
@@ -372,8 +373,8 @@ void parseCMDargs(int argc, char *argv[]){
 			++i;
 			//load the validation training labels or expected outputs
 			printf("parsing validation-data-label file \n");
-			CreateIntVec(validationLabelIdx,validationDataSetSize); 
-			initialiseWithZero(validationLabelIdx,validationDataSetSize,sizeof(int)*validationDataSetSize);
+			validationLabelIdx = CreateIntVec(validationDataSetSize); 
+			initialiseWithZeroIVector(validationLabelIdx,validationDataSetSize,sizeof(int)*validationDataSetSize);
 			loadLabels(NULL,validationLabelIdx,argv[i],"validation");
 			printf("validation labels from %s have been successfully loaded\n",argv[i]);
 			continue;
@@ -423,8 +424,8 @@ void setUpMinibatchforHF(ADLink anndef){
 	int minibatchSize =  (int)(samplingRateHf * BATCHSAMPLES);
 	printf( "BATCH SIZE %d ",minibatchSize);
  	if (miniBatchforHF == NULL){
- 		CreateMatrix(miniBatchforHF,minibatchSize,inputDim);
- 		CreateIntVec(minBatchLabels,minibatchSize);
+ 		miniBatchforHF = CreateMatrix(minibatchSize,inputDim);
+ 		minBatchLabels = CreateIntVec(minibatchSize);
  	}
 
  	int * randomIndices = malloc(sizeof(int)*BATCHSAMPLES);
@@ -433,7 +434,7 @@ void setUpMinibatchforHF(ADLink anndef){
  	for (i = 0 ; i<minibatchSize;i++){
  		index = randomIndices[i];
  		minBatchLabels->elems[i] = labels->elems[index];
- 		CopyMatrixOrVec (inputData, (index*inputDim),miniBatchforHF,(i*inputDim),inputDim);
+ 		CopyMatrix (inputData, (index*inputDim),miniBatchforHF,(i*inputDim),inputDim);
  		
  	}
 	free(randomIndices);
@@ -450,19 +451,19 @@ void setUpForHF(ADLink anndef){
 		layer = anndef->layerList[i];
 		//set up structure to accumulate gradients
 		if (layer->traininfo->updatedWeightMat == NULL && layer->traininfo->updatedBiasMat == NULL){
-			CreateMatrix(layer->traininfo->updatedWeightMat,layer->dim ,layer->srcDim);
-			CreateFloatVec(layer->traininfo->updatedBiasMat,layer->dim);
+			layer->traininfo->updatedWeightMat = CreateMatrix(layer->dim ,layer->srcDim);
+			layer->traininfo->updatedBiasMat = CreateFloatVec(layer->dim);
 			
-			initialiseWithZero(layer->traininfo->updatedWeightMat,layer->dim*layer->srcDim,sizeof(float)*layer->dim*layer->srcDim);
-			initialiseWithZero(layer->traininfo->updatedBiasMat,layer->dim,sizeof(float)*layer->dim);
+			initialiseWithZeroMatrix(layer->traininfo->updatedWeightMat,layer->dim*layer->srcDim,sizeof(float)*layer->dim*layer->srcDim);
+			initialiseWithZeroFVector(layer->traininfo->updatedBiasMat,layer->dim,sizeof(float)*layer->dim);
 
 			assert(layer->traininfo->bestWeightParamsHF==NULL); 
 			assert( layer->traininfo->bestBiasParamsHF==NULL);
 
-			CreateMatrix(layer->traininfo->bestWeightParamsHF,layer->dim ,layer->srcDim)
-			CreateFloatVec(layer->traininfo->bestBiasParamsHF,layer->dim)
-			initialiseWithZero(layer->traininfo->bestWeightParamsHF,layer->dim*layer->srcDim,sizeof(float)*layer->dim*layer->srcDim);
-			initialiseWithZero(layer->traininfo->bestBiasParamsHF,layer->dim,sizeof(float)*layer->dim);
+			layer->traininfo->bestWeightParamsHF = CreateMatrix(layer->dim ,layer->srcDim);
+			layer->traininfo->bestBiasParamsHF = CreateFloatVec(layer->dim);
+			initialiseWithZeroMatrix(layer->traininfo->bestWeightParamsHF,layer->dim*layer->srcDim,sizeof(float)*layer->dim*layer->srcDim);
+			initialiseWithZeroFVector(layer->traininfo->bestBiasParamsHF,layer->dim,sizeof(float)*layer->dim);
 		}
 		else if (layer->traininfo->updatedWeightMat == NULL || layer->traininfo->updatedBiasMat == NULL){
 			printf("Error something went wrong during the initialisation of updatedWeightMat and updateBiasMat in the layer %d \n",i);
@@ -470,32 +471,32 @@ void setUpForHF(ADLink anndef){
 		}
 
 		layer->cgInfo = malloc(sizeof(ConjuageGradientInfo));
-		CreateMatrix(layer->cgInfo->delweightsUpdate,layer->dim,layer->srcDim);
-		CreateMatrix(layer->cgInfo->residueUpdateWeights,layer->dim,layer->srcDim);
-		CreateMatrix(layer->cgInfo->searchDirectionUpdateWeights,layer->dim,layer->srcDim);
+		layer->cgInfo->delweightsUpdate = CreateMatrix(layer->dim,layer->srcDim);
+		layer->cgInfo->residueUpdateWeights = CreateMatrix(layer->dim,layer->srcDim);
+		layer->cgInfo->searchDirectionUpdateWeights = CreateMatrix(layer->dim,layer->srcDim);
 		
-		initialiseWithZero(layer->cgInfo->delweightsUpdate,layer->dim*layer->srcDim,sizeof(float)*layer->dim*layer->srcDim);
-		initialiseWithZero(layer->cgInfo->residueUpdateWeights,layer->dim*layer->srcDim,sizeof(float)*layer->dim*layer->srcDim);
-		initialiseWithZero(layer->cgInfo->searchDirectionUpdateWeights,layer->dim*layer->srcDim,sizeof(float)*layer->dim*layer->srcDim);
+		initialiseWithZeroMatrix(layer->cgInfo->delweightsUpdate,layer->dim*layer->srcDim,sizeof(float)*layer->dim*layer->srcDim);
+		initialiseWithZeroMatrix(layer->cgInfo->residueUpdateWeights,layer->dim*layer->srcDim,sizeof(float)*layer->dim*layer->srcDim);
+		initialiseWithZeroMatrix(layer->cgInfo->searchDirectionUpdateWeights,layer->dim*layer->srcDim,sizeof(float)*layer->dim*layer->srcDim);
 
-		CreateFloatVec(layer->cgInfo->delbiasUpdate,layer->dim);
-		CreateFloatVec(layer->cgInfo->searchDirectionUpdateBias,layer->dim);
-		CreateFloatVec(layer->cgInfo->residueUpdateBias,layer->dim);
+		layer->cgInfo->delbiasUpdate = CreateFloatVec(layer->dim);
+		layer->cgInfo->searchDirectionUpdateBias = CreateFloatVec(layer->dim);
+		layer->cgInfo->residueUpdateBias = CreateFloatVec(layer->dim);
 
-		initialiseWithZero(layer->cgInfo->delbiasUpdate,layer->dim,sizeof(float)*layer->dim);
-		initialiseWithZero(layer->cgInfo->residueUpdateBias,layer->dim,sizeof(float)*layer->dim);
-		initialiseWithZero(layer->cgInfo->searchDirectionUpdateBias,layer->dim,sizeof(float)*layer->dim);
+		initialiseWithZeroFVector(layer->cgInfo->delbiasUpdate,layer->dim,sizeof(float)*layer->dim);
+		initialiseWithZeroFVector(layer->cgInfo->residueUpdateBias,layer->dim,sizeof(float)*layer->dim);
+		initialiseWithZeroFVector(layer->cgInfo->searchDirectionUpdateBias,layer->dim,sizeof(float)*layer->dim);
 
 
 		if (useGNMatrix){
 			layer->gnInfo = malloc (sizeof(GaussNewtonProductInfo));
-			CreateMatrix(layer->gnInfo->vweights,layer->dim,layer->srcDim);
-			CreateFloatVec(layer->gnInfo->vbiases,layer->dim);
-			CreateMatrix(layer->gnInfo->Ractivations,BATCHSAMPLES,layer->dim);
+			layer->gnInfo->vweights = CreateMatrix(layer->dim,layer->srcDim);
+			layer->gnInfo->vbiases = CreateFloatVec(layer->dim);
+			layer->gnInfo->Ractivations = CreateMatrix(BATCHSAMPLES,layer->dim);
 			
-			initialiseWithZero(layer->gnInfo->vbiases,layer->dim,sizeof(float)*layer->dim);
-			initialiseWithZero(layer->gnInfo->vweights,layer->dim*layer->srcDim,sizeof(float)*layer->dim*layer->srcDim);
-			initialiseWithZero(layer->gnInfo->Ractivations,layer->dim*BATCHSAMPLES,sizeof(float)*layer->dim*BATCHSAMPLES);
+			initialiseWithZeroFVector(layer->gnInfo->vbiases,layer->dim,sizeof(float)*layer->dim);
+			initialiseWithZeroMatrix(layer->gnInfo->vweights,layer->dim*layer->srcDim,sizeof(float)*layer->dim*layer->srcDim);
+			initialiseWithZeroMatrix(layer->gnInfo->Ractivations,layer->dim*BATCHSAMPLES,sizeof(float)*layer->dim*BATCHSAMPLES);
 
 		}
 	}
@@ -508,8 +509,8 @@ void reinitLayerFeaMatrices(ADLink anndef){
 		layer = anndef->layerList[i];
 		if (layer->feaElem->yfeatMat != NULL){
 			DisposeMatrix(layer->feaElem->yfeatMat);
-			CreateMatrix(layer->feaElem->yfeatMat, BATCHSAMPLES,layer->dim);
-			initialiseWithZero(layer->feaElem->yfeatMat,layer->dim*BATCHSAMPLES,sizeof(float)*layer->dim*BATCHSAMPLES);
+			layer->feaElem->yfeatMat = CreateMatrix(BATCHSAMPLES,layer->dim);
+			initialiseWithZeroMatrix(layer->feaElem->yfeatMat,layer->dim*BATCHSAMPLES,sizeof(float)*layer->dim*BATCHSAMPLES);
 			layer->feaElem->xfeatMat = (layer->src != NULL) ? layer->src->feaElem->yfeatMat : NULL;
 		}
 	}
@@ -521,8 +522,8 @@ void reinitLayerErrFeaMatrices(ADLink anndef){
 		layer = anndef->layerList[i];
 		if (layer->errElem->dxFeatMat != NULL){
 			DisposeMatrix(layer->errElem->dxFeatMat);
-			CreateMatrix(layer->errElem->dxFeatMat,BATCHSAMPLES,layer->srcDim); 
-			initialiseWithZero(layer->errElem->dxFeatMat,layer->srcDim*BATCHSAMPLES,sizeof(float)*layer->srcDim*BATCHSAMPLES);
+			layer->errElem->dxFeatMat = CreateMatrix(BATCHSAMPLES,layer->srcDim); 
+			initialiseWithZeroMatrix(layer->errElem->dxFeatMat,layer->srcDim*BATCHSAMPLES,sizeof(float)*layer->srcDim*BATCHSAMPLES);
 			if ( i!=0){
 			srcLayer = layer->src;
 			srcLayer->errElem->dyFeatMat = layer->errElem->dxFeatMat;
@@ -536,7 +537,7 @@ void initialiseErrElems(ADLink anndef){
 	for (i = 0; i < anndef->layerNum ;i++){
 		layer = anndef->layerList[i];
 		layer->errElem = (ERLink) malloc (sizeof(ErrElem));
-		CreateMatrix(layer->errElem->dxFeatMat, BATCHSAMPLES,layer->srcDim);
+		layer->errElem->dxFeatMat = CreateMatrix(BATCHSAMPLES,layer->srcDim);
 		if ( i!=0){
 			srcLayer = layer->src;
 			srcLayer->errElem->dyFeatMat = layer->errElem->dxFeatMat;
@@ -544,16 +545,6 @@ void initialiseErrElems(ADLink anndef){
 	}
 	
 }
-void initialiseWithZero(NMatrix * matrix, int dim,size_t size){
-	int i;
-	for (i = 0; i< dim;i++){
-		matrix->elems[i] = 0;
-	}
-	#ifdef CUDA
-	initialiseDeviceArrayWithZero(matrix->deviceElems,size);
-	#endif
-}
-
 float drand(){	
 return (float) rand()/(RAND_MAX);
 }
@@ -573,11 +564,11 @@ void initialiseWeights(NMatrix *weights,int dim,int srcDim, ActFunKind actfunc){
 			/* bengio;s proposal for a new tpye of initialisation to ensure 
 			the variance of error derivatives are comparable accross layers*/
 			if (actfunc == SIGMOID){
-				* weights->elems = 4* genrandWeight(sqrt(6)/sqrt(dim+srcDim+1));
+				 weights->elems[i*srcDim +j] = 4* genrandWeight(sqrt(6)/sqrt(dim+srcDim+1));
 			}else{
-				* weights->elems = genrandWeight(sqrt(6)/sqrt(dim+srcDim+1));
+				 weights->elems[i*srcDim +j] = genrandWeight(sqrt(6)/sqrt(dim+srcDim+1));
 			}
-			weights->elems = weights->elems + 1;
+			
 		}
 	}
 	#ifdef CUDA
@@ -605,44 +596,44 @@ void initialiseLayer(LELink layer,int i, LELink srcLayer){
 	}
 	//initialise weights and biases: W is node by feadim Matrix 
 	numOfElems = (layer->dim) * (layer->srcDim);
-	CreateMatrix(layer->weights,layer->dim,layer->srcDim);
+	layer->weights = CreateMatrix(layer->dim,layer->srcDim);
 	assert(layer->weights!=NULL);
 	
-	CreateFloatVec(layer->bias,layer->dim);
+	layer->bias = CreateFloatVec(layer->dim);
 	assert(layer->bias!=NULL);
 	//initialise weights of outer layer
 	if (i ==(numLayers-1)){
-		initialiseWithZero(layer->weights,layer->dim * layer->srcDim,sizeof(float)*layer->dim * layer->srcDim);
+		initialiseWithZeroMatrix(layer->weights,layer->dim * layer->srcDim,sizeof(float)*layer->dim * layer->srcDim);
 	}else{
 		//initialise weights of hidden layers
-		//initialiseWithZero(layer->weights,layer->dim * layer->srcDim,sizeof(float)*layer->dim * layer->srcDim);
+		//initialiseWithZeroMatrix(layer->weights,layer->dim * layer->srcDim,sizeof(float)*layer->dim * layer->srcDim);
 		initialiseWeights(layer->weights,layer->dim,layer->srcDim,layer->actfuncKind);
 	}
-	initialiseWithZero(layer->bias,layer->dim, sizeof(float)*layer->dim);
+	initialiseWithZeroFVector(layer->bias,layer->dim, sizeof(float)*layer->dim);
 	
 	//initialise feaElems
 	layer->feaElem = (FELink) malloc(sizeof(FeaElem));
 	assert(layer->feaElem!=NULL);
-	CreateMatrix(layer->feaElem->yfeatMat,BATCHSAMPLES,layer->dim); 
-	initialiseWithZero(layer->feaElem->yfeatMat,layer->dim*BATCHSAMPLES, sizeof(float)*layer->dim*BATCHSAMPLES);
+	layer->feaElem->yfeatMat = CreateMatrix(BATCHSAMPLES,layer->dim); 
+	initialiseWithZeroMatrix(layer->feaElem->yfeatMat,layer->dim*BATCHSAMPLES, sizeof(float)*layer->dim*BATCHSAMPLES);
 	layer->feaElem->xfeatMat = (srcLayer != NULL) ? srcLayer->feaElem->yfeatMat : NULL;
 	
 	//intialise traininfo and allocating extra memory for setting hooks
 	layer->traininfo = (TRLink) malloc(sizeof(TrainInfo) * sizeof(float)*(numOfElems*4));
 	assert(layer->traininfo!= NULL);
-	CreateMatrix(layer->traininfo->dwFeatMat,layer->dim,layer->srcDim);
-	initialiseWithZero(layer->traininfo->dwFeatMat,numOfElems, sizeof(float)*numOfElems);
+	layer->traininfo->dwFeatMat = CreateMatrix(layer->dim,layer->srcDim);
+	initialiseWithZeroMatrix(layer->traininfo->dwFeatMat,numOfElems, sizeof(float)*numOfElems);
 
-	CreateFloatVec(layer->traininfo->dbFeaMat,layer->dim);
-	initialiseWithZero(layer->traininfo->dbFeaMat,layer->dim, sizeof(float)*layer->dim);
+	layer->traininfo->dbFeaMat = CreateFloatVec(layer->dim);
+	initialiseWithZeroFVector(layer->traininfo->dbFeaMat,layer->dim, sizeof(float)*layer->dim);
 	layer->traininfo->updatedWeightMat = NULL;
 	layer->traininfo->updatedBiasMat = NULL;
 
 	if (momentum > 0) {
-		CreateMatrix(layer->traininfo->updatedWeightMat,layer->dim,layer->srcDim);
-		CreateFloatVec(layer->traininfo->updatedBiasMat,layer->dim);
-		initialiseWithZero(layer->traininfo->updatedWeightMat,numOfElems,sizeof(float)*numOfElems);
-		initialiseWithZero(layer->traininfo->updatedBiasMat,layer->dim,sizeof(float)*layer->dim);
+		layer->traininfo->updatedWeightMat = CreateMatrix(layer->dim,layer->srcDim);
+		layer->traininfo->updatedBiasMat = CreateFloatVec(layer->dim);
+		initialiseWithZeroMatrix(layer->traininfo->updatedWeightMat,numOfElems,sizeof(float)*numOfElems);
+		initialiseWithZeroFVector(layer->traininfo->updatedBiasMat,layer->dim,sizeof(float)*layer->dim);
 	}
 }
 void initialiseDNN(){
@@ -682,30 +673,39 @@ void initialise(){
 //-------------------------------------------------------------------------------------------------------------------
 /* this section of the code presents code that creates matrices in host and device(In case of GPU computing)*/
 //-------------------------------------------------------------------------------------------------------------------
-void CreateMatrix(NMatrix *matrix, int row , int col){
+NMatrix * CreateMatrix(int row , int col){
+	NMatrix *matrix;
 	matrix  = malloc(sizeof(NMatrix));
+	
 	matrix->row = row ;
 	matrix ->col = col ;
 	matrix->elems = malloc(sizeof(float)*row*col);
 	#ifdef CUDA
+	
 	cudaMalloc((void **)&matrix->deviceElems, sizeof(float)*row*col);
 	#endif
+	return matrix;
+	
 }
-void CreateFloatVec(NFVector *vector, int len){
+NFVector * CreateFloatVec(int len){
+	NFVector * vector;
 	vector  = malloc(sizeof(NFVector));
 	vector->len = len ;
 	vector->elems = malloc(sizeof(float)*len);
 	#ifdef CUDA
 	cudaMalloc((void **)&vector->deviceElems, sizeof(float)*len);
 	#endif
+	return  vector ;
 }
-void CreateIntVec(NIntVector *vector, int len){
+NIntVector * CreateIntVec( int len){
+	NIntVector * vector;
 	vector  = malloc(sizeof(NIntVector));
 	vector->len = len ;
 	vector->elems = malloc(sizeof(int)*len);
 	#ifdef CUDA
 	cudaMalloc((void **)&vector->deviceElems, sizeof(int)*len);
 	#endif
+	return vector;
 }
 void DisposeMatrix(NMatrix *matrix){
 	assert (matrix!=NULL);
@@ -731,10 +731,71 @@ void DisposeIntVec(NIntVector *vector){
 	#endif 
 	free(vector);
 }
+void initialiseWithZeroMatrix(NMatrix * matrix, int dim,size_t size){
+	int i;
+	for (i = 0; i< dim;i++){
+		matrix->elems[i] = 0;
+	}
+	#ifdef CUDA
+	initialiseDeviceArrayWithZero(matrix->deviceElems,size);
+	#endif
+}
+void initialiseWithZeroFVector(NFVector * matrix, int dim,size_t size){
+	int i;
+	for (i = 0; i< dim;i++){
+		matrix->elems[i] = 0;
+	}
+	#ifdef CUDA
+	initialiseDeviceArrayWithZero(matrix->deviceElems,size);
+	#endif
+}
+void initialiseWithZeroIVector(NIntVector * matrix, int dim,size_t size){
+	int i;
+	for (i = 0; i< dim;i++){
+		matrix->elems[i] = 0;
+	}
+	#ifdef CUDA
+	initialiseDeviceArrayWithZero(matrix->deviceElems,size);
+	#endif
+}
+
 //-------------------------------------------------------------------------------------------------------------------
-/* this section of the code presents code contains auxillary  functions that are frequently used*/
+/* this section of the code presents library routines that are frequently used*/
 //-------------------------------------------------------------------------------------------------------------------
-void CopyMatrixOrVec (NMatrix *src,int lstartpos, NMatrix *dest,int rstartpos,int dim){
+void CopyMatrix (NMatrix *src,int lstartpos, NMatrix *dest,int rstartpos,int dim){
+
+	#ifdef CBLAS
+	cblas_scopy(dim, src->elems+lstartpos, 1,dest->elems+rstartpos, 1);
+	#else
+		#ifdef CUDA
+			 CopyMatrixOrVecCUDA(src->deviceElems+lstartpos, dest->deviceElems+rstartpos, dim);
+		#endif
+	memcpy(dest,src,sizeof(float)*dim);		
+	#endif
+}
+void CopyVec (NFVector *src,int lstartpos, NFVector *dest,int rstartpos,int dim){
+
+	#ifdef CBLAS
+	cblas_scopy(dim, src->elems+lstartpos, 1,dest->elems+rstartpos, 1);
+	#else
+		#ifdef CUDA
+			 CopyMatrixOrVecCUDA(src->deviceElems+lstartpos, dest->deviceElems+rstartpos, dim);
+		#endif
+	memcpy(dest,src,sizeof(float)*dim);		
+	#endif
+}
+void CopyVecToMat (NFVector *src,int lstartpos, NMatrix *dest,int rstartpos,int dim){
+
+	#ifdef CBLAS
+	cblas_scopy(dim, src->elems+lstartpos, 1,dest->elems+rstartpos, 1);
+	#else
+		#ifdef CUDA
+			 CopyMatrixOrVecCUDA(src->deviceElems+lstartpos, dest->deviceElems+rstartpos, dim);
+		#endif
+	memcpy(dest,src,sizeof(float)*dim);		
+	#endif
+}
+void CopyMatrixToVec (NMatrix *src,int lstartpos, NFVector *dest,int rstartpos,int dim){
 
 	#ifdef CBLAS
 	cblas_scopy(dim, src->elems+lstartpos, 1,dest->elems+rstartpos, 1);
@@ -747,7 +808,22 @@ void CopyMatrixOrVec (NMatrix *src,int lstartpos, NMatrix *dest,int rstartpos,in
 }
 
 /* this function allows the addition of  two matrices or two vectors*/
-void addMatrixOrVec(NMatrix * weights, NMatrix * dwFeatMat,int dim, float lambda){
+void addMatrix(NMatrix * weights, NMatrix * dwFeatMat,int dim, float lambda){
+	//blas routine
+	#ifdef CBLAS
+		cblas_saxpy(dim,lambda,weights->elems,1,dwFeatMat->elems,1);
+	#else
+		#ifdef CUDA
+			AddNSegmentCUDA(weights->deviceElems,dim,dwFeatMat->deviceElems,lambda)
+		#else
+			int i;
+			for (i =0;i<dim;i++){
+				dwFeatMat->elems[i] = dwFeatMat->elems[i] + (weights->elems[i] * lambda);
+			}
+		#endif	
+	#endif	
+}
+void addVec(NFVector * weights, NFVector * dwFeatMat,int dim, float lambda){
 	//blas routine
 	#ifdef CBLAS
 		cblas_saxpy(dim,lambda,weights->elems,1,dwFeatMat->elems,1);
@@ -763,7 +839,22 @@ void addMatrixOrVec(NMatrix * weights, NMatrix * dwFeatMat,int dim, float lambda
 	#endif	
 }
 /*multipy a vector or a matrix with a scalar*/
-void scaleMatrixOrVec(NMatrix * Mat, float scale ,int dim){
+void scaleMatrix(NMatrix * Mat, float scale ,int dim){
+	//blas routine
+	#ifdef CBLAS
+		cblas_sscal(dim,scale,Mat->elems,1);
+	#else
+		#ifdef CUDA
+			ScaleNSegmentCUDA(dim, scale,Mat->deviceElems);	
+		#else
+			int i;
+			for (i =0;i<dim;i++){
+				Mat->elems[i] = Mat->elems[i]*scale;	
+			}
+		#endif	
+	#endif	
+}
+void scaleVec(NFVector * Mat, float scale ,int dim){
 	//blas routine
 	#ifdef CBLAS
 		cblas_sscal(dim,scale,Mat->elems,1);
@@ -786,11 +877,13 @@ void subtractMatrix(NMatrix *dyfeat, NMatrix* labelMat, int dim, float lambda){
 	#else
 		#ifdef CUDA
 		SubNSegmentCUDA(labelMat->deviceElems,dim,dyfeat->deviceElems,-lambda);
+		#else
 		//CPU version
 		int i;
 		for (i = 0; i<dim;i++){
 			dyfeat[i] = dyfeat[i]-lambda*labelMat[i];
 		}
+		#endif
 	#endif
 }
 
@@ -814,7 +907,7 @@ void HNBlasNNgemm(int srcDim, int batchsamples, int dim, float alpha, NMatrix *w
 	#endif
 }
 
-void HNBlasNTgemm(int srcDim, int dim,  int batchsamples, float alpha , NMatrix* xfeatMat, NMatrix dyFeatMat, beta, NMatrix * dwFeatMat){
+void HNBlasNTgemm(int srcDim, int dim,  int batchsamples, float alpha , NMatrix* xfeatMat, NMatrix * dyFeatMat, float beta, NMatrix * dwFeatMat){
 	#ifdef CBLAS
 		cblas_sgemm(CblasColMajor, CblasNoTrans, CblasTrans, srcDim, dim, batchsamples, alpha, xfeatMat->elems, srcDim, dyFeatMat->elems, dim, beta,dwFeatMat->elems, srcDim);
 	#else 
@@ -824,7 +917,38 @@ void HNBlasNTgemm(int srcDim, int dim,  int batchsamples, float alpha , NMatrix*
 	#endif	
 }
  
-
+float computeDotProductMatrix(NMatrix * vectorL, NMatrix * vectorR,int dim){
+	float result = 0;
+	#ifdef CBLAS
+		result = cblas_sdot(dim,vectorL->elems,1,vectorR->elems,1);
+      	#else
+		#ifdef CUDA
+			computeDotProductCUDA(vectorL->deviceElems,vectorR->deviceElems,dim,&result);
+		#else
+			int i;
+			for (i = 0 ; i < dim; i++){
+				result+= vectorL->elems[i] * vectorR->elems [i];
+			}
+		#endif
+	#endif
+	return result;
+} 
+float computeDotProductVector(NFVector * vectorL, NFVector * vectorR,int dim){
+	float result = 0;
+	#ifdef CBLAS
+		result = cblas_sdot(dim,vectorL->elems,1,vectorR->elems,1);
+      	#else
+		#ifdef CUDA
+			computeDotProductCUDA(vectorL->deviceElems,vectorR->deviceElems,dim,&result);
+		#else
+			int i;
+			for (i = 0 ; i < dim; i++){
+				result+= vectorL->elems[i] * vectorR->elems [i];
+			}
+		#endif
+	#endif
+	return result;
+} 
 //-------------------------------------------------------------------------------------------------------------------
 /*this section of the code implements the  forward propgation of a deep neural net **/
 //-------------------------------------------------------------------------------------------------------------------
@@ -888,16 +1012,16 @@ void computeNonLinearActOfLayer(LELink layer){
 							sum = 0;
 							maximum = 0;
 							for (j = 0; j<layer->dim;j++){
-								float value = layer->feaElem->yfeatMat[i*layer->dim+j];
+								float value = layer->feaElem->yfeatMat->elems[i*layer->dim+j];
 								if (value>maximum) maximum = value;
 							}
 							for (j = 0; j<layer->dim;j++){
-								float value = layer->feaElem->yfeatMat[i*layer->dim+j];
-								layer->feaElem->yfeatMat[i*layer->dim+j] = exp(value-maximum);
+								float value = layer->feaElem->yfeatMat->elems[i*layer->dim+j];
+								layer->feaElem->yfeatMat->elems[i*layer->dim+j] = exp(value-maximum);
 								sum+= exp(value-maximum);
 							}
 							for (j =0; j<layer->dim;j++){
-								layer->feaElem->yfeatMat[i*layer->dim+j]= layer->feaElem->yfeatMat[i*layer->dim+j]/sum ;
+								layer->feaElem->yfeatMat->elems[i*layer->dim+j]= layer->feaElem->yfeatMat->elems[i*layer->dim+j]/sum ;
 							}
 						}
 					#endif	
@@ -926,7 +1050,7 @@ void computeLinearActivation(LELink layer){
 			CopyNSegmentCUDA(layer->bias->deviceElems, layer->dim, layer->feaElem-.yfeatMat->deviceElems+off);
 		}
 		void HNBlasTNgemmCUDA(layer->dim, BATCHSAMPLES, layer->srcDim, 1, layer->weights->deviceElems,layer->feaElem->xfeatMat->deviceElems, 1, layer->feaElem->yfeatMat->deviceElems)
-		
+		#endif
 	#endif
 }
 
@@ -970,7 +1094,7 @@ void computeActivationOfOutputLayer(ADLink anndef){
 //------------------------------------------------------------------------------------------------------
 /*This section of the code implements the back-propation algorithm  to compute the error derivatives*/
 //-------------------------------------------------------------------------------------------------------
-void sumColsOfMatrix(NMatrix *dyFeatMat,NMatrix *dbFeatMat,int dim,int batchsamples){
+void sumColsOfMatrix(NMatrix *dyFeatMat,NFVector *dbFeatMat,int dim,int batchsamples){
 	#ifdef CBLAS
 		int i;
 		float* ones = malloc (sizeof(float)*batchsamples);
@@ -984,7 +1108,7 @@ void sumColsOfMatrix(NMatrix *dyFeatMat,NMatrix *dbFeatMat,int dim,int batchsamp
 		free (ones);
 	#else
 		#ifdef CUDA
-			sumColsOfMatrix(dyFeatMat->deviceElems,dbFeatMat->deviceElems,int dim,int batchsamples);
+			sumColsOfMatrixCUDA(dyFeatMat->deviceElems,dbFeatMat->deviceElems,int dim,int batchsamples);
 		#endif	
 	#endif
 }
@@ -1020,25 +1144,29 @@ void computeActivationDrv (LELink layer){
 /**compute del^2L J where del^2L is the hessian of the cross-entropy softmax with respect to output acivations **/ 
 void computeLossHessSoftMax(LELink layer){
 	int i,j;
-	CreateFloatVec(RactivationVec,layer->dim);
-	CreateFloatVec(yfeatVec,layer->dim);
-	CreateMatrix(diaP,layer->dim,layer->dim);
-	CreateFloatVec(result,layer->dim);
+	NFVector * RactivationVec;
+	NMatrix * yfeatVec;
+	NMatrix * diaP;
+	NFVector * result;
+	RactivationVec = CreateFloatVec(layer->dim);
+	yfeatVec = CreateMatrix(layer->dim,1);
+	diaP = CreateMatrix(layer->dim,layer->dim);
+	result = CreateFloatVec(layer->dim);
 	
 	// under the assumption then we call this function after we have already computed gradients then we might need to reset yfeatMat 
 	computeLinearActivation(layer);
 	computeNonLinearActOfLayer(layer);
 	for (i = 0 ; i< BATCHSAMPLES; i++){
-		initialiseWithZero(RactivationVec,layer->dim,sizeof(float)*layer->dim);
-		initialiseWithZero(yfeatVec,layer->dim,sizeof(float)*layer->dim);
-		initialiseWithZero(diaP,layer->dim*layer->dim,sizeof(float)*layer->dim*layer->dim);
-		initialiseWithZero(result,layer->dim,sizeof(float)*layer->dim);
+		initialiseWithZeroFVector(RactivationVec,layer->dim,sizeof(float)*layer->dim);
+		initialiseWithZeroMatrix(yfeatVec,layer->dim,sizeof(float)*layer->dim);
+		initialiseWithZeroMatrix(diaP,layer->dim*layer->dim,sizeof(float)*layer->dim*layer->dim);
+		initialiseWithZeroFVector(result,layer->dim,sizeof(float)*layer->dim);
 		/**extract error directional derivative for a single sample*/ 
-		CopyMatrixOrVec (layer->gnInfo->Ractivations,i*(layer->dim),RactivationVec,0,layer->dim);
-		CopyMatrixOrVec (layer->feaElem->yfeatMat,i*(layer->dim),yfeatVec,0,layer->dim);
+		CopyMatrixToVec (layer->gnInfo->Ractivations,i*(layer->dim),RactivationVec,0,layer->dim);
+		CopyMatrix (layer->feaElem->yfeatMat,i*(layer->dim),yfeatVec,0,layer->dim);
 		//compute dia(yfeaVec - yfeacVec*yfeaVec)'
 
-		HNBlasNNgemm(layer->dim, layer->dim, 1, -1,yfeatVec , yfeatVec, 0, diap);
+		HNBlasNNgemm(layer->dim, layer->dim, 1, -1,yfeatVec , yfeatVec, 0, diaP);
 		#ifdef CBLAS
 		for (j = 0; j<layer->dim;j++){
 			diaP->elems[j*(layer->dim+1)] += yfeatVec->elems[j];
@@ -1054,11 +1182,11 @@ void computeLossHessSoftMax(LELink layer){
 			#endif
 
 		#endif
-		CopyMatrixOrVec (result,0,layer->feaElem->yfeatMat,i*(layer->dim),layer->dim);
+		CopyVecToMat (result,0,layer->feaElem->yfeatMat,i*(layer->dim),layer->dim);
 		
 	}
 	DisposeFloatVec(result);
-	DisposeFloatVec(yfeatVec);
+	DisposeMatrix(yfeatVec);
 	DisposeFloatVec(RactivationVec);
 	DisposeMatrix(diaP);
 
@@ -1117,18 +1245,18 @@ void backPropBatch(ADLink anndef,Boolean doHessVecProd){
 
 			layer->errElem->dyFeatMat = layer->feaElem->yfeatMat;
 			/**normalisation because the cost function is mean log-likelihood*/
-			scaleMatrixOrVec(layer->feaElem->yfeatMat,(float)1/BATCHSAMPLES,BATCHSAMPLES*layer->dim);
+			scaleMatrix(layer->feaElem->yfeatMat,(float)1/BATCHSAMPLES,BATCHSAMPLES*layer->dim);
 		}else{
 			// from previous iteration dxfeat that is dyfeat now is dE/dZ.. computing dE/da
 			computeActivationDrv(layer); 
 		}
-		#ifdef CBLAS
+		
 		//compute dxfeatMat: the result  should be an array [ b1 b2..] where b1 is one of dim srcDim
 		HNBlasNNgemm(layer->srcDim, BATCHSAMPLES, layer->dim, 1, layer->weights, layer->errElem->dyFeatMat, 0, layer->errElem->dxFeatMat);	
 		//compute derivative with respect to weights: the result  should be an array of array of [ n1 n2] where n1 is of length srcDim
 		HNBlasNTgemm(layer->srcDim, layer->dim, BATCHSAMPLES, 1, layer->feaElem->xfeatMat,layer->errElem->dyFeatMat,0, layer->traininfo->dwFeatMat);
  		//compute dE/db
-		sumColsOfMatrix(layer->errElem->dyFeatMat,layer->traininfo->dbFeatMat,int dim,int batchsamples);
+		sumColsOfMatrix(layer->errElem->dyFeatMat,layer->traininfo->dbFeaMat, layer->dim, BATCHSAMPLES);
 	}
 }
 //------------------------------------------------------------------------------------------------------
@@ -1139,8 +1267,8 @@ void cacheParameters(ADLink anndef){
 	LELink layer;
 	for (i =(anndef->layerNum-1) ; i >=0; --i){
 		layer = anndef->layerList[i];
-		CopyMatrixOrVec (layer->bias,layer->bestBias,layer->dim);
-		CopyMatrixOrVec (layer->weights,layer->bestweights,layer->dim*layer->srcDim);
+		CopyVec (layer->bias,0,layer->bestBias,0,layer->dim);
+		CopyMatrix (layer->weights,0,layer->bestweights,0,layer->dim*layer->srcDim);
 	}	
 	printf("successfully cached best parameters \n");
 }
@@ -1150,33 +1278,36 @@ Boolean initialiseParameterCaches(ADLink anndef){
 	LELink layer;
 	for (i =(anndef->layerNum-1) ; i >=0; --i){
 		layer = anndef->layerList[i];
-		CreateMatrix(layer->bestweights,layer->dim,layer->srcDim);
-		CreateFloatVec(layer->bestBias,layer->dim);
+		layer->bestweights = CreateMatrix(layer->dim,layer->srcDim);
+		layer->bestBias = CreateFloatVec(layer->dim);
 	}	
 	printf("successfully intialised caches \n");
 	return TRUE;
 	 
 }
-void perfBinClassf(float *yfeatMat, float *predictions,int dataSize){
+void perfBinClassf(NMatrix *yfeatMat, int *predictions,int dataSize){
 	int i;
 	for (i = 0; i< dataSize;i++){
-		predictions[i] = yfeatMat[i]>0.5 ? 1 :0;
-		printf("Predictions %d  %lf  and yfeat is %lf and real predict is %d \n",i,predictions[i],yfeatMat[i],validationLabelIdx[i]);
+		predictions[i] = yfeatMat->elems[i]>0.5 ? 1 :0;
+		printf("Predictions %d  %d  and yfeat is %lf and real predict is %d \n",i,predictions[i],yfeatMat->elems[i],validationLabelIdx->elems[i]);
 	}
 }
 /**compute the negative mean log likelihood of the training data**/
-float computeLogLikelihood(float* output, int batchsamples, int dim , int* labels){
+float computeLogLikelihood(NMatrix * output, int batchsamples, int dim , NIntVector * labels){
 	int i,index;
 	float lglikelihood = 0;
+	#ifdef CUDA
+		SyncDev2Host(output->deviceElems,output->elems,sizeof(float)*batchsamples*dim);
+	#endif
 
 	for (i = 0; i < batchsamples ;i++){
-		index =  labels[i];
-		lglikelihood += log(output[i*dim+index]);
+		index =  labels->elems[i];
+		lglikelihood += log(output->elems[i*dim+index]);
 	}
 	return -1*(lglikelihood/batchsamples);
 }
 /*The function finds the most active node in the output layer for each sample*/
-void findMaxElement(float *matrix, int row, int col, float *vec){
+void findMaxElement(float *matrix, int row, int col, int *vec){
 	int maxIdx, i, j;
   	float maxVal;
  	for (i = 0; i < row; ++i) {
@@ -1192,20 +1323,24 @@ void findMaxElement(float *matrix, int row, int col, float *vec){
    }
 }
 /** the function calculates the average error*/
-float updatateAcc(int *labels, LELink layer,int dataSize){
+float updatateAcc(NIntVector * labels, LELink layer,int dataSize){
 	int i, dim;
 	float holdingVal;
 	int accCount=0;
+	#ifdef CUDA
+		SyncDev2Host(layer->feaElem->yfeatMat->deviceElems,layer->feaElem->yfeatMat->elems,sizeof(float)*dataSize);
+	#endif
+
 	if (anndef->target==CLASSIFICATION){
-		float *predictions = malloc(sizeof(float)*dataSize);
+		int *predictions = malloc(sizeof(int)*dataSize);
 		if (layer->dim >1){
 			dim = layer->dim;
-			findMaxElement(layer->feaElem->yfeatMat,dataSize,dim,predictions);
+			findMaxElement(layer->feaElem->yfeatMat->elems,dataSize,dim,predictions);
 		}else{
 			perfBinClassf(layer->feaElem->yfeatMat,predictions,dataSize);
 		}
 		for (i = 0; i<dataSize;i++){
-			if (fabs(predictions[i]-labels[i])>0.01){
+			if ((predictions[i]-labels->elems[i])>0){
 				accCount+=1;
 			}	
 		}
@@ -1230,21 +1365,21 @@ void updateNeuralNetParams(ADLink anndef, float lrnrate, float momentum, float w
 		if (weightdecay > 0){
 			//printf("SHIOULD NOTT REACH HER \n");
 			/** here we are computing delE/w + lambda w and then later we add leanring rate -mu(delE/w + lambda w)**/
-			addMatrixOrVec(layer->weights,layer->traininfo->dwFeatMat,layer->dim*layer->srcDim,weightdecay);
-			addMatrixOrVec(layer->bias,layer->traininfo->dbFeaMat,layer->dim,weightdecay);
+			addMatrix(layer->weights,layer->traininfo->dwFeatMat,layer->dim*layer->srcDim,weightdecay);
+			addVec(layer->bias,layer->traininfo->dbFeaMat,layer->dim,weightdecay);
 		}
 		if (momentum > 0 ){
-			scaleMatrixOrVec(layer->traininfo->updatedWeightMat,momentum,layer->dim*layer->srcDim);
-			scaleMatrixOrVec(layer->traininfo->updatedBiasMat,momentum,layer->dim);
-			addMatrixOrVec(layer->traininfo->dwFeatMat,layer->traininfo->updatedWeightMat,layer->dim*layer->srcDim,lrnrate);
-			addMatrixOrVec(layer->traininfo->dbFeaMat,layer->traininfo->updatedBiasMat,layer->dim,1-momentum);
+			scaleMatrix(layer->traininfo->updatedWeightMat,momentum,layer->dim*layer->srcDim);
+			scaleVec(layer->traininfo->updatedBiasMat,momentum,layer->dim);
+			addMatrix(layer->traininfo->dwFeatMat,layer->traininfo->updatedWeightMat,layer->dim*layer->srcDim,lrnrate);
+			addVec(layer->traininfo->dbFeaMat,layer->traininfo->updatedBiasMat,layer->dim,1-momentum);
 			//updating parameters: first we need to descale the lambda from weights and bias
-			addMatrixOrVec(layer->traininfo->updatedWeightMat,layer->weights,layer->dim*layer->srcDim,1);
-			addMatrixOrVec(layer->traininfo->updatedBiasMat,layer->bias,layer->dim,1);
+			addMatrix(layer->traininfo->updatedWeightMat,layer->weights,layer->dim*layer->srcDim,1);
+			addVec(layer->traininfo->updatedBiasMat,layer->bias,layer->dim,1);
 		}else{
 			//updating parameters: first we need to descale the lambda from weights and bias
-			addMatrixOrVec(layer->traininfo->dwFeatMat,layer->weights,layer->dim*layer->srcDim,-1*lrnrate);
-			addMatrixOrVec(layer->traininfo->dbFeaMat,layer->bias,layer->dim,-1*lrnrate);
+			addMatrix(layer->traininfo->dwFeatMat,layer->weights,layer->dim*layer->srcDim,-1*lrnrate);
+			addVec(layer->traininfo->dbFeaMat,layer->bias,layer->dim,-1*lrnrate);
 		}
 	}
 		
@@ -1359,11 +1494,11 @@ void TrainDNNGD(){
 	}
 	clock_t end = clock();
 	printf("TRAINING ERROR >>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
-	printVector(log_likelihood,maxEpochNum+1);
+	printArray(log_likelihood,maxEpochNum+1);
 	printf("THE  VALIDATION RESULTS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
-	printVector(zero_one_error,maxEpochNum+1);
+	printArray(zero_one_error,maxEpochNum+1);
 	printf("The zero -one loss on training set >>>>>>>>>>>>>>>>>\n");
-	printVector(zero_one_errorTraining,maxEpochNum+1);
+	printArray(zero_one_errorTraining,maxEpochNum+1);
 	
 	printf("The minimum error on the validation data set is %lf percent  and min log_likelihood is %lf \n",min_validation_error*100, modelSetInfo->bestValue);
 	free(zero_one_error);
@@ -1391,10 +1526,10 @@ Ptr getHook(Ptr m,int incr){
 void accumulateLayerGradient(LELink layer,float weight){
 	assert(layer->traininfo->updatedBiasMat != NULL);
 	assert(layer->traininfo->updatedWeightMat != NULL);
-	CopyMatrixOrVec (layer->traininfo->dwFeatMat,0, layer->traininfo->updatedWeightMat,0,layer->srcDim*layer->dim);
-	CopyMatrixOrVec (layer->traininfo->dbFeaMat,0, layer->traininfo->updatedBiasMat,0,layer->dim);
-	scaleMatrixOrVec(layer->traininfo->updatedWeightMat, -1 ,layer->dim*layer->srcDim);
-	scaleMatrixOrVec(layer->traininfo->updatedBiasMat, -1 ,layer->dim);
+	CopyMatrix (layer->traininfo->dwFeatMat,0, layer->traininfo->updatedWeightMat,0,layer->srcDim*layer->dim);
+	CopyVec (layer->traininfo->dbFeaMat,0, layer->traininfo->updatedBiasMat,0,layer->dim);
+	scaleMatrix(layer->traininfo->updatedWeightMat, -1 ,layer->dim*layer->srcDim);
+	scaleVec(layer->traininfo->updatedBiasMat, -1 ,layer->dim);
 }
 void accumulateGradientsofANN(ADLink anndef){
 	int i;
@@ -1415,12 +1550,9 @@ void normOfWeights(ADLink anndef){
     LELink layer;
     for (i = 0; i<anndef->layerNum;i++){
         layer = anndef->layerList[i];
-	#ifdef CBLAS
-        weightsum+= cblas_sdot(layer->dim*layer->srcDim,layer->weights,1,layer->weights,1);
-        biasSum += cblas_sdot(layer->dim,layer->bias,1,layer->bias,1);
-	#endif
-        
-    }
+		weightsum+= computeDotProductMatrix(layer->weights,layer->weights,layer->dim*layer->srcDim);
+        biasSum +=  computeDotProductVector(layer->bias,layer->bias,layer->dim);
+     }
     printf( " The norm  of weights is %lf %lf  %lf \n",weightsum, biasSum,weightsum+biasSum);
     
     
@@ -1432,8 +1564,8 @@ void normaliseSearchDirections(ADLink anndef){
 	//computeSearchDirDotProduct(anndef,dotProduct);
 	for (i = 0; i<anndef->layerNum;i++){
 		layer = anndef->layerList[i];
-		scaleMatrixOrVec(layer->cgInfo->searchDirectionUpdateWeights, 1/sqrt(dotProduct[0]) ,layer->dim*layer->srcDim);
-		scaleMatrixOrVec(layer->cgInfo->searchDirectionUpdateBias, 1/sqrt(dotProduct[1]) ,layer->dim);
+		scaleMatrix(layer->cgInfo->searchDirectionUpdateWeights, 1/sqrt(dotProduct[0]) ,layer->dim*layer->srcDim);
+		scaleVec(layer->cgInfo->searchDirectionUpdateBias, 1/sqrt(dotProduct[1]) ,layer->dim);
 	}	
 }
 void normaliseResidueDirections(ADLink anndef, float* magnitudeOfGradient){
@@ -1441,8 +1573,8 @@ void normaliseResidueDirections(ADLink anndef, float* magnitudeOfGradient){
 	LELink layer;
 	for (i = 0; i<anndef->layerNum;i++){
 		layer = anndef->layerList[i];
-		scaleMatrixOrVec(layer->cgInfo->residueUpdateWeights, 1/sqrt(magnitudeOfGradient[0]) ,layer->dim*layer->srcDim);
-		scaleMatrixOrVec(layer->cgInfo->residueUpdateBias, 1/sqrt(magnitudeOfGradient[1]) ,layer->dim);
+		scaleMatrix(layer->cgInfo->residueUpdateWeights, 1/sqrt(magnitudeOfGradient[0]) ,layer->dim*layer->srcDim);
+		scaleVec(layer->cgInfo->residueUpdateBias, 1/sqrt(magnitudeOfGradient[1]) ,layer->dim);
 	}	
 
 }
@@ -1453,11 +1585,9 @@ void computeNormOfGradient(ADLink anndef){
 	LELink layer;
 	for (i = 0; i<anndef->layerNum;i++){
 		layer = anndef->layerList[i];
-		#ifdef CBLAS
-		weightsum+= cblas_sdot(layer->dim*layer->srcDim,layer->traininfo->dwFeatMat,1,layer->traininfo->dwFeatMat,1);
-		biasSum += cblas_sdot(layer->dim,layer->traininfo->dbFeaMat,1,layer->traininfo->dbFeaMat,1);
-		#endif
-	
+		weightsum+= computeDotProductMatrix(layer->traininfo->dwFeatMat,layer->traininfo->dwFeatMat,layer->dim*layer->srcDim);
+		biasSum += computeDotProductVector(layer->traininfo->dbFeaMat,layer->traininfo->dbFeaMat,layer->dim);
+		
 	}
 	printf( " The norm  of gradient is %lf %lf  %lf \n",weightsum, biasSum,weightsum+biasSum);
 }
@@ -1468,11 +1598,8 @@ void computeNormOfAccuGradient(ADLink anndef){
 	LELink layer;
 	for (i = 0; i<anndef->layerNum;i++){
 		layer = anndef->layerList[i];
-		#ifdef CBLAS
-		weightsum+= cblas_sdot(layer->dim*layer->srcDim,layer->traininfo->updatedWeightMat,1,layer->traininfo->updatedWeightMat,1);
-		biasSum += cblas_sdot(layer->dim,layer->traininfo->updatedBiasMat,1,layer->traininfo->updatedBiasMat,1);
-		#endif
-	
+		weightsum+= computeDotProductMatrix(layer->traininfo->updatedWeightMat,layer->traininfo->updatedWeightMat,layer->dim*layer->srcDim);
+		biasSum += computeDotProductVector(layer->traininfo->updatedBiasMat,layer->traininfo->updatedBiasMat,layer->dim);
 	}
 	printf( " The norm  of  accumulated gradient is %lf %lf  %lf \n",weightsum, biasSum,weightsum+biasSum);
 }
@@ -1484,11 +1611,8 @@ void normOfVweights(ADLink anndef){
 	LELink layer;
 	for (i = 0; i<anndef->layerNum;i++){
 		layer = anndef->layerList[i];
-		#ifdef CBLAS
-		weightsum+= cblas_sdot(layer->dim*layer->srcDim,layer->gnInfo->vweights,1,layer->gnInfo->vweights,1);
-		biasSum += cblas_sdot(layer->dim,layer->gnInfo->vbiases,1,layer->gnInfo->vbiases,1);
-		#endif
-	
+		weightsum+= computeDotProductMatrix(layer->gnInfo->vweights,layer->gnInfo->vweights,layer->dim*layer->srcDim);
+		biasSum += computeDotProductVector(layer->gnInfo->vbiases,layer->gnInfo->vbiases,layer->dim);
 	}
 	printf( " The norm  of veights direction is %lf %lf  %lf \n",weightsum, biasSum,weightsum+biasSum);
 
@@ -1508,13 +1632,13 @@ void printGVoutput(ADLink anndef){
 	printMatrix(anndef->layerList[0]->traininfo->dwFeatMat,anndef->layerList[0]->dim,anndef->layerList[0]->srcDim);
 
 	printf("de/db of hidden layer\n");
-	printMatrix(anndef->layerList[0]->traininfo->dbFeaMat,1,10);
+	printVector(anndef->layerList[0]->traininfo->dbFeaMat,10);
 
 	printf("de/dw of output layer\n");
 	printMatrix(anndef->layerList[1]->traininfo->dwFeatMat,anndef->layerList[1]->dim,anndef->layerList[1]->srcDim);
 
 	printf("de/db of output layer\n");
-	printMatrix(anndef->layerList[1]->traininfo->dbFeaMat,1,10);
+	printVector(anndef->layerList[1]->traininfo->dbFeaMat,10);
 
 }
 void computeSearchDirDotProduct(ADLink anndef){
@@ -1524,69 +1648,72 @@ void computeSearchDirDotProduct(ADLink anndef){
 	LELink layer;
 	for (i = 0; i<anndef->layerNum;i++){
 		layer = anndef->layerList[i];
-		#ifdef CBLAS
-		weightsum+= cblas_sdot(layer->dim*layer->srcDim,layer->cgInfo->searchDirectionUpdateWeights,1,layer->cgInfo->searchDirectionUpdateWeights,1);
-		biasSum += cblas_sdot(layer->dim,layer->cgInfo->searchDirectionUpdateBias,1,layer->cgInfo->searchDirectionUpdateBias,1);
-		#endif
-	
+		weightsum+=computeDotProductMatrix(layer->cgInfo->searchDirectionUpdateWeights,layer->cgInfo->searchDirectionUpdateWeights,layer->dim*layer->srcDim);
+		biasSum += computeDotProductVector(layer->cgInfo->searchDirectionUpdateBias,layer->cgInfo->searchDirectionUpdateBias,layer->dim);
 	}
 	printf( " The norm  of search direction is %lf %lf  %lf \n",weightsum, biasSum,weightsum+biasSum);
 }
 
 void displaySearchDirection(ADLink anndef){
+	//Assuming we are using Blas
 	printf("search direction layer 0\n");
 	printMatrix(anndef->layerList[0]->cgInfo->searchDirectionUpdateWeights,anndef->layerList[0]->dim,anndef->layerList[0]->srcDim);
 
 	printf("search direction layer 0\n");
-	printMatrix(anndef->layerList[0]->cgInfo->searchDirectionUpdateBias,1,10);
+	printVector(anndef->layerList[0]->cgInfo->searchDirectionUpdateBias,10);
 
 	printf("search direction layer 1\n");
 	printMatrix(anndef->layerList[1]->cgInfo->searchDirectionUpdateWeights,anndef->layerList[1]->dim,anndef->layerList[1]->srcDim);
 
 	printf("search direction layer 1\n");
-	printMatrix(anndef->layerList[1]->cgInfo->searchDirectionUpdateBias,1,10);
+	printVector(anndef->layerList[1]->cgInfo->searchDirectionUpdateBias,10);
 
 }
 void displayResidueDirection(ADLink anndef){
+	//Assuming we are using Blas
+	
 	printf(" residue direction layer 0\n");
 	printMatrix(anndef->layerList[0]->cgInfo->residueUpdateWeights,anndef->layerList[0]->dim,anndef->layerList[0]->srcDim);
 
 	printf("reisdue direction layer 0\n");
-	printMatrix(anndef->layerList[0]->cgInfo->residueUpdateBias,1,10);
+	printVector(anndef->layerList[0]->cgInfo->residueUpdateBias,10);
 
 	printf("residue direction layer 1\n");
 	printMatrix(anndef->layerList[1]->cgInfo->residueUpdateWeights,anndef->layerList[1]->dim,anndef->layerList[1]->srcDim);
 
 	printf("residue direction layer 1\n");
-	printMatrix(anndef->layerList[1]->cgInfo->residueUpdateBias,1,10);
+	printVector(anndef->layerList[1]->cgInfo->residueUpdateBias,10);
 
 }
 void displayVweights(ADLink anndef){
+	//Assuming we are using Blas
 	printf(" vweights layer 0\n");
 	printMatrix(anndef->layerList[0]->gnInfo->vweights,anndef->layerList[0]->dim,anndef->layerList[0]->srcDim);
 
 	printf(" vbaias layer 0\n");
-	printMatrix(anndef->layerList[0]->gnInfo->vbiases,1,10);
+	printVector(anndef->layerList[0]->gnInfo->vbiases,10);
 
 	printf("vweights layer 1\n");
 	printMatrix(anndef->layerList[1]->gnInfo->vweights,anndef->layerList[1]->dim,anndef->layerList[1]->srcDim);
 
 	printf("vweights  layer 1\n");
-	printMatrix(anndef->layerList[1]->gnInfo->vbiases,1,10);
+	printVector(anndef->layerList[1]->gnInfo->vbiases,10);
 
 }
 void displaydelWs(ADLink anndef){
+	//Assuming we are using Blas
+	
 	printf(" delWs 0\n");
 	printMatrix(anndef->layerList[0]->cgInfo->delweightsUpdate,anndef->layerList[0]->dim,anndef->layerList[0]->srcDim);
 
 	printf(" delB layer 0\n");
-	printMatrix(anndef->layerList[0]->cgInfo->delbiasUpdate,1,10);
+	printVector(anndef->layerList[0]->cgInfo->delbiasUpdate,10);
 
 	printf("delW layer 1\n");
 	printMatrix(anndef->layerList[1]->cgInfo->delweightsUpdate,anndef->layerList[1]->dim,anndef->layerList[1]->srcDim);
 
 	printf(" delB  layer 1\n");
-	printMatrix(anndef->layerList[1]->cgInfo->delbiasUpdate,1,10);
+	printVector(anndef->layerList[1]->cgInfo->delbiasUpdate,10);
 
 }
 
@@ -1598,11 +1725,8 @@ void normofGV(ADLink anndef){
 	LELink layer;
 	for (i = 0; i<anndef->layerNum;i++){
 		layer = anndef->layerList[i];
-		#ifdef CBLAS
-		weightsum+= cblas_sdot(layer->dim*layer->srcDim,layer->traininfo->dwFeatMat,1,layer->traininfo->dwFeatMat,1);
-		biasSum += cblas_sdot(layer->dim,layer->traininfo->dbFeaMat,1,layer->traininfo->dbFeaMat,1);
-		#endif
-	
+		weightsum +=computeDotProductMatrix(layer->traininfo->dwFeatMat,layer->traininfo->dwFeatMat,layer->dim*layer->srcDim);
+		biasSum += computeDotProductVector(layer->traininfo->dbFeaMat,layer->traininfo->dbFeaMat,layer->dim);
 	}
 	printf("the norm of GV is %lf %lf  %lf \n", weightsum, biasSum,weightsum+biasSum);
 }
@@ -1614,11 +1738,8 @@ void normofDELW(ADLink anndef){
 	LELink layer;
 	for (i = 0; i<anndef->layerNum;i++){
 		layer = anndef->layerList[i];
-		#ifdef CBLAS
-		weightsum+= cblas_sdot(layer->dim*layer->srcDim,layer->cgInfo->delweightsUpdate,1,layer->cgInfo->delweightsUpdate,1);
-		biasSum += cblas_sdot(layer->dim,layer->cgInfo->delbiasUpdate,1,layer->cgInfo->delbiasUpdate,1);
-		#endif
-	
+		weightsum +=computeDotProductMatrix(layer->cgInfo->delweightsUpdate,layer->cgInfo->delweightsUpdate,layer->dim*layer->srcDim);
+		biasSum += computeDotProductVector(layer->cgInfo->delbiasUpdate,layer->cgInfo->delbiasUpdate,layer->dim);
 	}
 	printf("the norm of del W is %lf  \n", weightsum+biasSum);
 }
@@ -1630,8 +1751,8 @@ void resetdelWeights(ADLink anndef){
 	LELink layer;
 	for (i =0 ; i <(anndef->layerNum); i++){
 		layer = anndef->layerList[i];
-		initialiseWithZero(layer->cgInfo->delweightsUpdate,layer->dim*layer->srcDim);
-		initialiseWithZero(layer->cgInfo->delbiasUpdate,layer->dim);		
+		initialiseWithZeroMatrix(layer->cgInfo->delweightsUpdate,layer->dim*layer->srcDim,sizeof(float)*layer->dim*layer->srcDim);
+		initialiseWithZeroFVector(layer->cgInfo->delbiasUpdate,layer->dim,sizeof(float)*layer->dim);		
 	}
 }
 
@@ -1640,8 +1761,8 @@ void getBestParamsCG(ADLink anndef){
 	LELink layer;
 	for (i =0 ; i < anndef->layerNum; i++){
 		layer = anndef->layerList[i];
-		CopyMatrixOrVec (layer->traininfo->bestWeightParamsHF,layer->weights,layer->dim*layer->srcDim);
-		CopyMatrixOrVec (layer->traininfo->bestBiasParamsHF,layer->bias,layer->dim);
+		CopyMatrix (layer->traininfo->bestWeightParamsHF,0,layer->weights,0,layer->dim*layer->srcDim);
+		CopyVec (layer->traininfo->bestBiasParamsHF,0,layer->bias,0,layer->dim);
 		
 	}
 
@@ -1653,8 +1774,8 @@ void cacheParamsCG(ADLink anndef){
 		layer = anndef->layerList[i];
 		//printf("best weight so for layer %d \n" ,i);
 		//printMatrix(layer->weights,layer->dim,layer->srcDim);
-		CopyMatrixOrVec (layer->weights,layer->traininfo->bestWeightParamsHF,layer->dim*layer->srcDim);
-		CopyMatrixOrVec (layer->bias,layer->traininfo->bestBiasParamsHF,layer->dim);
+		CopyMatrix (layer->weights,0,layer->traininfo->bestWeightParamsHF,0,layer->dim*layer->srcDim);
+		CopyVec (layer->bias,0,layer->traininfo->bestBiasParamsHF,0,layer->dim);
 	}
 
 }
@@ -1663,8 +1784,8 @@ void updateNeuralNetParamsHF( ADLink anndef){
 	LELink layer;
 	for (i =0 ; i <(anndef->layerNum); i++){
 		layer = anndef->layerList[i];
-		addMatrixOrVec(layer->cgInfo->delweightsUpdate,layer->weights,layer->dim*layer->srcDim,1);
-		addMatrixOrVec(layer->cgInfo->delbiasUpdate,layer->bias,layer->dim,1);
+		addMatrix(layer->cgInfo->delweightsUpdate,layer->weights,layer->dim*layer->srcDim,1);
+		addVec(layer->cgInfo->delbiasUpdate,layer->bias,layer->dim,1);
 	}
 }
 void backtrackNeuralNetParamsCG(ADLink anndef){
@@ -1672,8 +1793,8 @@ void backtrackNeuralNetParamsCG(ADLink anndef){
 	LELink layer;
 	for (i =0 ; i < anndef->layerNum; i++){
 		layer = anndef->layerList[i];
-		addMatrixOrVec(layer->cgInfo->delweightsUpdate,layer->weights,layer->dim*layer->srcDim,-1);
-		addMatrixOrVec(layer->cgInfo->delbiasUpdate,layer->bias,layer->dim,-1);
+		addMatrix(layer->cgInfo->delweightsUpdate,layer->weights,layer->dim*layer->srcDim,-1);
+		addVec(layer->cgInfo->delbiasUpdate,layer->bias,layer->dim,-1);
 	}
 }
 
@@ -1686,11 +1807,11 @@ void updateParameterDirection(ADLink anndef,float beta){
 	for (i = 0; i<anndef->layerNum;i++){
 		layer = anndef->layerList[i];
 		//first we set p_K+1 = beta  p_k then we set p_k+1+=r_k+1
-		scaleMatrixOrVec(layer->cgInfo->searchDirectionUpdateWeights,beta,layer->dim*layer->srcDim);
-		addMatrixOrVec(layer->cgInfo->residueUpdateWeights,layer->cgInfo->searchDirectionUpdateWeights,layer->dim*layer->srcDim,1);
+		scaleMatrix(layer->cgInfo->searchDirectionUpdateWeights,beta,layer->dim*layer->srcDim);
+		addMatrix(layer->cgInfo->residueUpdateWeights,layer->cgInfo->searchDirectionUpdateWeights,layer->dim*layer->srcDim,1);
 		
-		scaleMatrixOrVec(layer->cgInfo->searchDirectionUpdateBias,beta,layer->dim);
-		addMatrixOrVec(layer->cgInfo->residueUpdateBias,layer->cgInfo->searchDirectionUpdateBias,layer->dim,1);
+		scaleVec(layer->cgInfo->searchDirectionUpdateBias,beta,layer->dim);
+		addVec(layer->cgInfo->residueUpdateBias,layer->cgInfo->searchDirectionUpdateBias,layer->dim,1);
 	}	
 }
 
@@ -1711,12 +1832,12 @@ void updateResidue(ADLink anndef){
 	//residue r_k+1 = b - A del w_k+1
 	for (i = 0; i<anndef->layerNum;i++){
 		layer = anndef->layerList[i];
-		CopyMatrixOrVec (layer->traininfo->dwFeatMat,layer->cgInfo->residueUpdateWeights,layer->dim*layer->srcDim);
-		CopyMatrixOrVec (layer->traininfo->dbFeaMat,layer->cgInfo->residueUpdateBias,layer->dim);
-		scaleMatrixOrVec(layer->cgInfo->residueUpdateWeights, -1 ,layer->dim*layer->srcDim);
-		scaleMatrixOrVec(layer->cgInfo->residueUpdateBias, -1 ,layer->dim);
-		addMatrixOrVec(layer->traininfo->updatedWeightMat,layer->cgInfo->residueUpdateWeights,layer->dim*layer->srcDim,1);
-		addMatrixOrVec(layer->traininfo->updatedBiasMat,layer->cgInfo->residueUpdateBias,layer->dim,1);
+		CopyMatrix (layer->traininfo->dwFeatMat,0,layer->cgInfo->residueUpdateWeights,0,layer->dim*layer->srcDim);
+		CopyVec (layer->traininfo->dbFeaMat,0,layer->cgInfo->residueUpdateBias,0,layer->dim);
+		scaleMatrix(layer->cgInfo->residueUpdateWeights, -1 ,layer->dim*layer->srcDim);
+		scaleVec(layer->cgInfo->residueUpdateBias, -1 ,layer->dim);
+		addMatrix(layer->traininfo->updatedWeightMat,layer->cgInfo->residueUpdateWeights,layer->dim*layer->srcDim,1);
+		addVec(layer->traininfo->updatedBiasMat,layer->cgInfo->residueUpdateBias,layer->dim,1);
 	}	
 }
 float  computeQuadfun( ADLink anndef){
@@ -1728,14 +1849,14 @@ float  computeQuadfun( ADLink anndef){
 	//compute (b+r_K)+x *-0.5
 	for (i = 0; i<anndef->layerNum;i++){
 		layer = anndef->layerList[i];
-		addMatrixOrVec(layer->traininfo->updatedWeightMat,layer->cgInfo->residueUpdateWeights,layer->dim*layer->srcDim,1);
-		addMatrixOrVec(layer->traininfo->updatedBiasMat,layer->cgInfo->residueUpdateBias,layer->dim,1);
-		#ifdef CBLAS
-		weightsum+= cblas_sdot(layer->dim*layer->srcDim,layer->cgInfo->residueUpdateWeights,1,layer->cgInfo->delweightsUpdate,1);
-		biasSum += cblas_sdot(layer->dim,layer->cgInfo->residueUpdateBias,1,layer->cgInfo->delbiasUpdate,1);
-		#endif
-		addMatrixOrVec(layer->traininfo->updatedWeightMat,layer->cgInfo->residueUpdateWeights,layer->dim*layer->srcDim,-1);
-		addMatrixOrVec(layer->traininfo->updatedBiasMat,layer->cgInfo->residueUpdateBias,layer->dim,-1);
+		addMatrix(layer->traininfo->updatedWeightMat,layer->cgInfo->residueUpdateWeights,layer->dim*layer->srcDim,1);
+		addVec(layer->traininfo->updatedBiasMat,layer->cgInfo->residueUpdateBias,layer->dim,1);
+		
+		biasSum += computeDotProductVector(layer->cgInfo->residueUpdateBias,layer->cgInfo->residueUpdateBias,layer->dim);
+		weightsum+= computeDotProductMatrix(layer->cgInfo->residueUpdateWeights,layer->cgInfo->residueUpdateWeights,layer->dim*layer->srcDim);
+		
+		addMatrix(layer->traininfo->updatedWeightMat,layer->cgInfo->residueUpdateWeights,layer->dim*layer->srcDim,-1);
+		addVec(layer->traininfo->updatedBiasMat,layer->cgInfo->residueUpdateBias,layer->dim,-1);
 	}
 	obj_fun = (weightsum+biasSum)*-0.5;
 	printf("the objective function is %lf >>>>\n", obj_fun);
@@ -1747,8 +1868,8 @@ void updatedelParameters(float alpha){
 	LELink layer;
 	for (i = 0; i<anndef->layerNum;i++){
 		layer = anndef->layerList[i];
-		addMatrixOrVec(layer->cgInfo->searchDirectionUpdateWeights,layer->cgInfo->delweightsUpdate,layer->dim*layer->srcDim,alpha);
-		addMatrixOrVec(layer->cgInfo->searchDirectionUpdateBias,layer->cgInfo->delbiasUpdate,layer->dim,alpha);
+		addMatrix(layer->cgInfo->searchDirectionUpdateWeights,layer->cgInfo->delweightsUpdate,layer->dim*layer->srcDim,alpha);
+		addVec(layer->cgInfo->searchDirectionUpdateBias,layer->cgInfo->delbiasUpdate,layer->dim,alpha);
 	}		
 }
 void computeSearchDirMatrixProduct( ADLink anndef,float * searchVecMatrixVecProductResult){
@@ -1758,10 +1879,8 @@ void computeSearchDirMatrixProduct( ADLink anndef,float * searchVecMatrixVecProd
 	LELink layer;
 	for (i = 0; i<anndef->layerNum;i++){
 		layer = anndef->layerList[i];
-		#ifdef CBLAS
-		weightsum+= cblas_sdot(layer->dim*layer->srcDim,layer->cgInfo->searchDirectionUpdateWeights,1,layer->traininfo->dwFeatMat,1);
-		biasSum += cblas_sdot(layer->dim,layer->cgInfo->searchDirectionUpdateBias,1,layer->traininfo->dbFeaMat,1);
-		#endif
+		weightsum+= computeDotProductMatrix(layer->cgInfo->searchDirectionUpdateWeights,layer->cgInfo->searchDirectionUpdateWeights,layer->dim*layer->srcDim);
+		biasSum +=  computeDotProductVector(layer->cgInfo->searchDirectionUpdateBias,layer->cgInfo->searchDirectionUpdateBias,layer->dim);
 	}	
  	*searchVecMatrixVecProductResult = weightsum + biasSum;
 }
@@ -1772,11 +1891,8 @@ void computeResidueDotProduct(ADLink anndef, float * residueDotProductResult){
 	LELink layer;
 	for (i = 0; i<anndef->layerNum;i++){
 		layer = anndef->layerList[i];
-		#ifdef CBLAS
-		weightsum+= cblas_sdot(layer->dim*layer->srcDim,layer->cgInfo->residueUpdateWeights,1,layer->cgInfo->residueUpdateWeights,1);
-		biasSum += cblas_sdot(layer->dim,layer->cgInfo->residueUpdateBias,1,layer->cgInfo->residueUpdateBias,1);
-		#endif
-	
+		weightsum+= computeDotProductMatrix(layer->cgInfo->residueUpdateWeights,layer->cgInfo->residueUpdateWeights,layer->dim*layer->srcDim);
+		biasSum += computeDotProductVector(layer->cgInfo->residueUpdateBias,layer->cgInfo->residueUpdateBias,layer->dim);
 	}
 	*residueDotProductResult = weightsum + biasSum;
 	
@@ -1786,8 +1902,8 @@ void addTikhonovDamping(ADLink anndef){
 	LELink layer;
 	for (i = 0; i < anndef->layerNum; i++){
 		layer = anndef->layerList[i]; 
-		addMatrixOrVec(layer->gnInfo->vweights,layer->traininfo->dwFeatMat,layer->dim*layer->srcDim,weightdecay);
-		addMatrixOrVec(layer->gnInfo->vbiases,layer->traininfo->dbFeaMat,layer->dim,weightdecay);
+		addMatrix(layer->gnInfo->vweights,layer->traininfo->dwFeatMat,layer->dim*layer->srcDim,weightdecay);
+		addVec(layer->gnInfo->vbiases,layer->traininfo->dbFeaMat,layer->dim,weightdecay);
 	}		
 }
 //-----------------------------------------------------------------------------------
@@ -1797,45 +1913,67 @@ void addTikhonovDamping(ADLink anndef){
 void updateRactivations(LELink layer){
 	//CPU Version
 	int i;
-	for (i = 0; i < layer->dim*BATCHSAMPLES; i++){
-		switch (layer->actfuncKind){
-			case SIGMOID:
-				layer->gnInfo->Ractivations[i] = layer->gnInfo->Ractivations[i]* (layer->feaElem->yfeatMat[i])*(1-layer->feaElem->yfeatMat[i]);
-				break;
-			case TANH:
-				layer->gnInfo->Ractivations[i] = layer->gnInfo->Ractivations[i]* (1 -layer->feaElem->yfeatMat[i]*layer->feaElem->yfeatMat[i]) ; 
-				break;
-			default :
-				layer->gnInfo->Ractivations[i] = layer->gnInfo->Ractivations[i]* (layer->feaElem->yfeatMat[i])*(1-layer->feaElem->yfeatMat[i]);
-				break;
+	switch (layer->actfuncKind){
+		case SIGMOID:
+			#ifdef CUDA
+			computeSigmoidDrvCUDA(layer->feaElem->yfeatMat->deviceElems,layer->dim*BATCHSAMPLES, layer->gnInfo->Ractivations->deviceElems);
+			#else
+			for (i = 0; i < layer->dim*BATCHSAMPLES; i++){
+				layer->gnInfo->Ractivations->elems[i] = layer->gnInfo->Ractivations->elems[i]* (layer->feaElem->yfeatMat->elems[i])*(1-layer->feaElem->yfeatMat->elems[i]);
+				}
+			#endif	
+			break;
+		case TANH:
+			#ifdef CUDA
+				computeTanHDrvCUDA(layer->feaElem->yfeatMat->deviceElems,layer->dim*BATCHSAMPLES, layer->gnInfo->Ractivations->deviceElems);
+			#else
+			for (i = 0; i < layer->dim*BATCHSAMPLES; i++){
+				layer->gnInfo->Ractivations->elems[i] = layer->gnInfo->Ractivations->elems[i]* (1 -layer->feaElem->yfeatMat->elems[i]*layer->feaElem->yfeatMat->elems[i]) ; 
+			}
+			#endif	
+			break;
+
+		default :
+			break;
 		}
 		
-	}
+	
 }
 /** this function compute \sum wji R(zi)-previous layer and adds it to R(zj)**/
 void computeRactivations(LELink layer){
 	int i,off;
-	float * buffer  = malloc (sizeof(float)* BATCHSAMPLES*layer->dim);
-	initialiseWithZero(buffer, BATCHSAMPLES*layer->dim);
+	NMatrix * buffer;
+	buffer = CreateMatrix( BATCHSAMPLES,layer->dim);
+	initialiseWithZeroMatrix(buffer, BATCHSAMPLES*layer->dim,sizeof(float)*BATCHSAMPLES*layer->dim);
 	for (i = 0, off = 0; i < BATCHSAMPLES;i++, off += layer->dim){
-		CopyMatrixOrVec (layer->bias,buffer,layer->dim);
+		CopyVecToMat (layer->bias,0,buffer,off,layer->dim);
 	}
 	#ifdef CBLAS
-		cblas_sgemm(CblasColMajor, CblasTrans, CblasNoTrans, layer->dim, BATCHSAMPLES, layer->srcDim, 1, layer->weights, layer->srcDim, layer->src->gnInfo->Ractivations, layer->srcDim, 1.0, buffer, layer->dim);
+		cblas_sgemm(CblasColMajor, CblasTrans, CblasNoTrans, layer->dim, BATCHSAMPLES, layer->srcDim, 1, layer->weights->elems, layer->srcDim, layer->src->gnInfo->Ractivations->elems, layer->srcDim, 1.0, buffer->elems, layer->dim);
+	#else
+		#ifdef CUDA
+		HNBlasTNgemmCUDA(layer->dim, BATCHSAMPLES, layer->srcDim, 1, layer->weights->deviceElems,layer->src->gnInfo->Ractivations->deviceElems, 1, buffer->deviceElems);
+		#endif
+	
 	#endif
-	addMatrixOrVec(buffer, layer->gnInfo->Ractivations,BATCHSAMPLES*layer->dim, 1);
-	free(buffer);
+
+	addMatrix(buffer, layer->gnInfo->Ractivations,BATCHSAMPLES*layer->dim, 1);
+	DisposeMatrix(buffer);
 }
 
 /**this function computes sum vji xi */
 void computeVweightsProjection(LELink layer){
 	int i,off;
 	for (i = 0, off = 0; i < BATCHSAMPLES;i++, off += layer->dim){
-		CopyMatrixOrVec (layer->gnInfo->vbiases,layer->gnInfo->Ractivations + off ,layer->dim);
+		CopyVecToMat (layer->gnInfo->vbiases,0,layer->gnInfo->Ractivations ,off ,layer->dim);
 	}
 	#ifdef CBLAS
-		cblas_sgemm(CblasColMajor, CblasTrans, CblasNoTrans, layer->dim, BATCHSAMPLES, layer->srcDim, 1, layer->gnInfo->vweights, layer->srcDim, layer->feaElem->xfeatMat, layer->srcDim, 1, layer->gnInfo->Ractivations, layer->dim);
-	#endif
+		cblas_sgemm(CblasColMajor, CblasTrans, CblasNoTrans, layer->dim, BATCHSAMPLES, layer->srcDim, 1, layer->gnInfo->vweights->elems, layer->srcDim, layer->feaElem->xfeatMat->elems, layer->srcDim, 1, layer->gnInfo->Ractivations->elems, layer->dim);
+	#else
+		#ifdef CUDA
+		HNBlasTNgemmCUDA(layer->dim, BATCHSAMPLES, layer->srcDim, 1, layer->gnInfo->vweights->deviceElems,layer->feaElem->xfeatMat->deviceElems, 1, l layer->gnInfo->Ractivations->deviceElems);
+		#endif
+	#endif	
 }
 
 void computeDirectionalErrDrvOfLayer(LELink layer, int layerid){
@@ -1864,12 +2002,12 @@ void computeDirectionalErrDerivativeofANN(ADLink anndef){
 	}
 }
 /**given a vector in parameteric space, this function copies the the segment of the vector that aligns with the parameters of the given layer*/
-void setParameterDirections(float * weights, float* bias, LELink layer){
+void setParameterDirections(NMatrix* weights, NFVector * bias, LELink layer){
 	assert(layer->gnInfo !=NULL);
-	initialiseWithZero(layer->gnInfo->vbiases,layer->dim);
-	initialiseWithZero(layer->gnInfo->vweights,layer->dim*layer->srcDim);
-	CopyMatrixOrVec (weights,layer->gnInfo->vweights,layer->dim*layer->srcDim);
-	CopyMatrixOrVec (bias,layer->gnInfo->vbiases,layer->dim);
+	initialiseWithZeroFVector(layer->gnInfo->vbiases,layer->dim,sizeof(float)*layer->dim);
+	initialiseWithZeroMatrix(layer->gnInfo->vweights,layer->dim*layer->srcDim,sizeof(float)*layer->dim*layer->srcDim);
+	CopyMatrix (weights,0,layer->gnInfo->vweights,0,layer->dim*layer->srcDim);
+	CopyVec (bias,0,layer->gnInfo->vbiases,0,layer->dim);
 }
 void setSearchDirectionCG(ADLink anndef, Boolean Parameter){
 	int i; 
@@ -1892,11 +2030,11 @@ void initialiseResidueaAndSearchDirection(ADLink anndef){
 	for (i = 0; i<anndef->layerNum;i++){
 		layer = anndef->layerList[i];
 
-		CopyMatrixOrVec (layer->traininfo->updatedWeightMat, layer->cgInfo->residueUpdateWeights,layer->dim*layer->srcDim);
-		CopyMatrixOrVec (layer->traininfo->updatedWeightMat, layer->cgInfo->searchDirectionUpdateWeights,layer->dim*layer->srcDim);
+		CopyMatrix (layer->traininfo->updatedWeightMat, 0,layer->cgInfo->residueUpdateWeights,0,layer->dim*layer->srcDim);
+		CopyMatrix (layer->traininfo->updatedWeightMat, 0,layer->cgInfo->searchDirectionUpdateWeights,0,layer->dim*layer->srcDim);
 		
-		CopyMatrixOrVec (layer->traininfo->updatedBiasMat,layer->cgInfo->residueUpdateBias,layer->dim);
-		CopyMatrixOrVec (layer->traininfo->updatedBiasMat,layer->cgInfo->searchDirectionUpdateBias,layer->dim);
+		CopyVec (layer->traininfo->updatedBiasMat,0,layer->cgInfo->residueUpdateBias,0,layer->dim);
+		CopyVec (layer->traininfo->updatedBiasMat,0,layer->cgInfo->searchDirectionUpdateBias,0,layer->dim);
 	}
 }
 void runConjugateGradient(){
@@ -1913,14 +2051,18 @@ void runConjugateGradient(){
 	float old_fun_value = DBL_MAX;
 	int num  = maxNumOfCGruns/5;
 	float *costlist = malloc(sizeof(float)*num);
-	initialiseWithZero(costlist,num);
+	memset(costlist,0,sizeof(float)*num);
 	int counter = 0;
 	int listcounter = 0;
 
-	
+	printf("R1\n");
 	initialiseResidueaAndSearchDirection(anndef);
+	printf("R2\n");
+	
 	//computeActivationOfOutputLayer(anndef);
 	cost = computeLogLikelihood(anndef->layerList[anndef->layerNum-1]->feaElem->yfeatMat,BATCHSAMPLES,anndef->layerList[anndef->layerNum-1]->dim,minBatchLabels);	
+	printf("R3\n");
+	
 	printf("Initial cost on minibatch %lf\n ",cost);
 	while(numberofRuns < maxNumOfCGruns){
 		printf("RUN  %d >>>>>>>>>>>>>>>>>>>>>\n",numberofRuns);
@@ -1998,7 +2140,7 @@ void runConjugateGradient(){
 			
 	printf("the actual minCOst on the mini-batch is %lf\n ",minCost);
 	printf("List of costs \n");
-	printVector(costlist,listcounter);
+	printArray(costlist,listcounter);
 	free(costlist);
 }
 void TrainDNNHF(){
@@ -2107,11 +2249,11 @@ void TrainDNNHF(){
 	}
 	clock_t end = clock();
 	printf("TRAINING ERROR >>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
-	printVector(log_likelihood,maxEpochNum+1);
+	printArray(log_likelihood,maxEpochNum+1);
 	printf("THE  VALIDATION RESULTS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
-	printVector(zero_one_error,maxEpochNum+1);
+	printArray(zero_one_error,maxEpochNum+1);
 	printf("The zero -one loss on training set >>>>>>>>>>>>>>>>>\n");
-	printVector(zero_one_errorTraining,maxEpochNum+1);
+	printArray(zero_one_errorTraining,maxEpochNum+1);
 	
 	printf("The minimum error on the validation data set is %lf percent  and min log_likelihood is %lf \n",min_validation_error*100, modelSetInfo->bestValue);
 	free(zero_one_error);
@@ -2155,41 +2297,41 @@ void freeMemoryfromANN(){
 					free (anndef->layerList[i]->traininfo);
 				}
 				if (anndef->layerList[i]->weights !=NULL){
-					free (anndef->layerList[i]->weights);
+					DisposeMatrix (anndef->layerList[i]->weights);
 				}
 				if (anndef->layerList[i]->bias !=NULL){
-					free (anndef->layerList[i]->bias);
+					DisposeFloatVec (anndef->layerList[i]->bias);
 				}
 				if(anndef->layerList[i]->gnInfo != NULL){
 					if (anndef->layerList[i]->gnInfo->vweights !=NULL){
-						free(anndef->layerList[i]->gnInfo->vweights);
+						DisposeMatrix(anndef->layerList[i]->gnInfo->vweights);
 					}
 					if (anndef->layerList[i]->gnInfo->vbiases !=NULL){
-						free (anndef->layerList[i]->gnInfo->vbiases);
+						DisposeFloatVec (anndef->layerList[i]->gnInfo->vbiases);
 					}
 					if (anndef->layerList[i]->gnInfo->Ractivations !=NULL){
-						free(anndef->layerList[i]->gnInfo->Ractivations);
+						DisposeMatrix(anndef->layerList[i]->gnInfo->Ractivations);
 					}
 					free (anndef->layerList[i]->gnInfo);
 				}
 				if(anndef->layerList[i]->cgInfo !=NULL){
 					if(anndef->layerList[i]->cgInfo->delweightsUpdate != NULL){
-						free(anndef->layerList[i]->cgInfo->delweightsUpdate);
+						DisposeMatrix(anndef->layerList[i]->cgInfo->delweightsUpdate);
 					}
 					if (anndef->layerList[i]->cgInfo->delbiasUpdate != NULL){
-						free (anndef->layerList[i]->cgInfo->delbiasUpdate);
+						DisposeFloatVec (anndef->layerList[i]->cgInfo->delbiasUpdate);
 					}
 					if (anndef->layerList[i]->cgInfo->residueUpdateWeights != NULL){
-						free(anndef->layerList[i]->cgInfo->residueUpdateWeights );
+						DisposeMatrix(anndef->layerList[i]->cgInfo->residueUpdateWeights );
 					}
 					if (anndef->layerList[i]->cgInfo->residueUpdateBias != NULL){
-						free(anndef->layerList[i]->cgInfo->residueUpdateBias);
+						DisposeFloatVec(anndef->layerList[i]->cgInfo->residueUpdateBias);
 					}
 					if (anndef->layerList[i]->cgInfo->searchDirectionUpdateBias != NULL){
-						free(anndef->layerList[i]->cgInfo->searchDirectionUpdateBias);
+						DisposeFloatVec(anndef->layerList[i]->cgInfo->searchDirectionUpdateBias);
 					}
 					if (anndef->layerList[i]->cgInfo->searchDirectionUpdateWeights != NULL){
-						free(anndef->layerList[i]->cgInfo->searchDirectionUpdateWeights);
+						DisposeMatrix(anndef->layerList[i]->cgInfo->searchDirectionUpdateWeights);
 					}
 					free(anndef->layerList[i]->cgInfo);
 				}
@@ -2201,16 +2343,19 @@ void freeMemoryfromANN(){
 		free(modelSetInfo);
 	}
 	free(inputData);
-	free(labels);
-	free(labelMat);
-	free(validationData);
-	free(validationLabelIdx);
+	DisposeIntVec(labels);
+	DisposeMatrix(labelMat);
+	DisposeMatrix(validationData);
+	DisposeIntVec(validationLabelIdx);
 	if (miniBatchforHF != NULL ){
-		free (miniBatchforHF);
+		DisposeMatrix (miniBatchforHF);
 	}
 	if (minBatchLabels !=NULL){
-		free (minBatchLabels);
+		DisposeIntVec (minBatchLabels);
 	}
+	#ifdef CUDA
+	StopCUDA();
+	#endif
 	printf("Finished freeing memory\n");
 }
 
@@ -2223,7 +2368,7 @@ void printLayerDWMatrices(ADLink anndef){
 		printf("printing  DEL W >>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
 		printMatrix(layer->cgInfo->delweightsUpdate,layer->dim,layer->srcDim);
 		printf("printing  DEL B >>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
-		printMatrix(layer->cgInfo->delbiasUpdate,1,layer->dim);
+		printVector(layer->cgInfo->delbiasUpdate,layer->dim);
 		
 
 	}	
@@ -2243,7 +2388,7 @@ void printLayerMatrices(ADLink anndef){
 	}	
 }
 
-void printVector(float * vector , int dim){
+void printArray(float *vector , int dim){
 	int i ;
 	printf("[ ");
 	for (i = 0; i < dim; i++){
@@ -2252,13 +2397,29 @@ void printVector(float * vector , int dim){
 	printf("]\n ");
 }
 
-void printMatrix(float * matrix,int row,int col){
+
+void printVector(NFVector *vector , int dim){
+	int i ;
+	#ifdef CUDA
+	SyncDev2Host(vector->deviceElems,vector->elems,sizeof(float)*dim);
+	#endif
+	printf("[ ");
+	for (i = 0; i < dim; i++){
+		printf( " %lf ",vector->elems[i]);
+	}	
+	printf("]\n ");
+}
+
+void printMatrix(NMatrix *matrix,int row,int col){
 int k,j;
 int r = row;
 int c = col;
+#ifdef CUDA
+SyncDev2Host(matrix->deviceElems,matrix->elems,sizeof(float)*row*col);
+#endif
 for (j = 0 ; j< r;j++){
 	for (k = 0 ; k <c;k++){
-		printf(" %lf ", matrix[j*col +k]);
+		printf(" %lf ", matrix->elems[j*col +k]);
 	
 		}
 	printf("\n");	
@@ -2281,7 +2442,7 @@ void printYfeat(ADLink anndef,int id){
 		printf("layer id %d dim is  %d\n ",id,layer->dim);
 		for (i = 0; i<20;i++){
 			for (j =0 ; j<dim;j++){
-				printf("%lf ",layer->feaElem->yfeatMat[i*layer->dim+j]);
+				printf("%lf ",layer->feaElem->yfeatMat->elems[i*layer->dim+j]);
 		}
 		printf("\n");
 	}
@@ -2289,13 +2450,13 @@ void printYfeat(ADLink anndef,int id){
 	printf("printing WEIGHTS \n");
 		for (j = 0 ; j< dim;j++){
 			for (k =0 ; k <20;k++){
-				printf(" %lf ", layer->weights[j*layer->dim +k]);
+				printf(" %lf ", layer->weights->elems[j*layer->dim +k]);
 			}
 			printf("\n");
 		}
 		printf("printing BIAS \n");
 		for (j = 0 ; j< layer->dim;j++){
-			printf(" %lf ", layer->bias[j]);
+			printf(" %lf ", layer->bias->elems[j]);
 		}
 		printf("\n");
 	
@@ -2308,7 +2469,7 @@ void UnitTest_computeGradientDotProd(){
 	float sum =0;
 	for ( i  =0 ; i < anndef->layerNum; i++){
 		layer = anndef->layerList[i];
-		sum += cblas_sdot(layer->dim*layer->srcDim,layer->traininfo->updatedWeightMat, 1, layer->traininfo->updatedWeightMat,1);
+		sum += cblas_sdot(layer->dim*layer->srcDim,layer->traininfo->updatedWeightMat->elems, 1, layer->traininfo->updatedWeightMat->elems,1);
 
 	}
 	printf("dotproduct of cache gradient vector is %lf \n",sum);
@@ -2320,21 +2481,37 @@ void UnitTest_computeGradientDotProd(){
 void unitTests(){
 	//checking the implementation of doing products with the gauss newton matrix
 	
-	float  vweightsH[] ={0.775812455441121,0.598968296474700,0.557221023059154,0.299707632069582,0.547657254432423,0.991829829468103,0.483412970471810,0.684773696180478,0.480016831195868,0.746520774837809,0.211422430258003,0.248486726468514,0.0978390795725171,0.708670434511610,0.855745919278928,0.789034249923306,0.742842549759275,0.104522115223072,0.520874909265143,0.846632465315532,0.843613150651208,0.377747297699522,0.272095361461968,0.125303924302938,0.691352539306520,0.555131164040551,0.00847423194155961,0.416031807168918,0.439118205411470,0.784360645016731,0.829997491112413,0.589606438454759,0.142074038271687,0.593313383711502,0.726192799270104,0.428380358133696,0.210792055986133,0.265384268404268,0.993183755212665,0.480756369506705,0.827750131864470,0.603238265822881,0.817841681068066,0.955547170535556,0.650378193390669,0.627647346270778,0.646563331304311,0.0621331286917197,0.938196645878781,0.898716437594415,0.694859162934643,0.310406171229422,0.343545605630366,0.0762294431350499,0.519836940596257,0.608777321469077,0.727159960434458,7.39335770538752e-05,0.169766268796397,0.463291023631989,0.361852151271785,0.952065614552366,0.932193359196872,0.958068660798924,0.206538420408243,0.159700734052653,0.571760567030289,0.592919191548301,0.698610749870688,0.305813464081036,0.393851341078336,0.336885826085107,0.128993041260436,0.0869363561072062,0.548943348806040,0.317733245140830,0.992747576055697,0.723565253441235,0.572101390105790,0.717227171632155,0.976559227688336,0.426990558230810,0.913013771059024,0.897311254281181,0.835228567475913,0.0479581714127454,0.359280569413193,0.295753896108793,0.629125618231216,0.136183801688937,0.374045801279154,0.864781698209823,0.250273591941488,0.0295055785950556,0.999448971390378,0.605142675082282,0.244195121925386,0.438195271553610,0.735093567145817,0.557989092238218};	
-	float vbaisH[] ={0,0,0,0,0,0,0,0,0,0};
+	NMatrix * vweightsH = malloc(sizeof(NMatrix));
+	float  vweightsHM[] ={0.775812455441121,0.598968296474700,0.557221023059154,0.299707632069582,0.547657254432423,0.991829829468103,0.483412970471810,0.684773696180478,0.480016831195868,0.746520774837809,0.211422430258003,0.248486726468514,0.0978390795725171,0.708670434511610,0.855745919278928,0.789034249923306,0.742842549759275,0.104522115223072,0.520874909265143,0.846632465315532,0.843613150651208,0.377747297699522,0.272095361461968,0.125303924302938,0.691352539306520,0.555131164040551,0.00847423194155961,0.416031807168918,0.439118205411470,0.784360645016731,0.829997491112413,0.589606438454759,0.142074038271687,0.593313383711502,0.726192799270104,0.428380358133696,0.210792055986133,0.265384268404268,0.993183755212665,0.480756369506705,0.827750131864470,0.603238265822881,0.817841681068066,0.955547170535556,0.650378193390669,0.627647346270778,0.646563331304311,0.0621331286917197,0.938196645878781,0.898716437594415,0.694859162934643,0.310406171229422,0.343545605630366,0.0762294431350499,0.519836940596257,0.608777321469077,0.727159960434458,7.39335770538752e-05,0.169766268796397,0.463291023631989,0.361852151271785,0.952065614552366,0.932193359196872,0.958068660798924,0.206538420408243,0.159700734052653,0.571760567030289,0.592919191548301,0.698610749870688,0.305813464081036,0.393851341078336,0.336885826085107,0.128993041260436,0.0869363561072062,0.548943348806040,0.317733245140830,0.992747576055697,0.723565253441235,0.572101390105790,0.717227171632155,0.976559227688336,0.426990558230810,0.913013771059024,0.897311254281181,0.835228567475913,0.0479581714127454,0.359280569413193,0.295753896108793,0.629125618231216,0.136183801688937,0.374045801279154,0.864781698209823,0.250273591941488,0.0295055785950556,0.999448971390378,0.605142675082282,0.244195121925386,0.438195271553610,0.735093567145817,0.557989092238218};	
+	vweightsH->elems = vweightsHM;
 
-	float  vweights0[] ={0.775812455441121,0.598968296474700,0.557221023059154,0.299707632069582,0.547657254432423,0.991829829468103,0.483412970471810,0.684773696180478,0.480016831195868,0.746520774837809,0.211422430258003,0.248486726468514,0.0978390795725171,0.708670434511610,0.855745919278928,0.789034249923306,0.742842549759275,0.104522115223072,0.520874909265143,0.846632465315532,0.843613150651208,0.377747297699522,0.272095361461968,0.125303924302938,0.691352539306520,0.555131164040551,0.00847423194155961,0.416031807168918,0.439118205411470,0.784360645016731,0.829997491112413,0.589606438454759,0.142074038271687,0.593313383711502,0.726192799270104,0.428380358133696,0.210792055986133,0.265384268404268,0.993183755212665,0.480756369506705,0.827750131864470,0.603238265822881,0.817841681068066,0.955547170535556,0.650378193390669,0.627647346270778,0.646563331304311,0.0621331286917197,0.938196645878781,0.898716437594415,0.694859162934643,0.310406171229422,0.343545605630366,0.0762294431350499,0.519836940596257,0.608777321469077,0.727159960434458,7.39335770538752e-05,0.169766268796397,0.463291023631989,0.361852151271785,0.952065614552366,0.932193359196872,0.958068660798924,0.206538420408243,0.159700734052653,0.571760567030289,0.592919191548301,0.698610749870688,0.305813464081036,0.393851341078336,0.336885826085107,0.128993041260436,0.0869363561072062,0.548943348806040,0.317733245140830,0.992747576055697,0.723565253441235,0.572101390105790,0.717227171632155,0.976559227688336,0.426990558230810,0.913013771059024,0.897311254281181,0.835228567475913,0.0479581714127454,0.359280569413193,0.295753896108793,0.629125618231216,0.136183801688937,0.374045801279154,0.864781698209823,0.250273591941488,0.0295055785950556,0.999448971390378,0.605142675082282,0.244195121925386,0.438195271553610,0.735093567145817,0.557989092238218};	
-	float vbaisO[] ={0,0,0,0,0,0,0,0,0,0};
+	NFVector * vbaisH = malloc(sizeof(NFVector));
+	float vbaisHM[] ={0,0,0,0,0,0,0,0,0,0};
+	vbaisH->elems = vbaisHM ;
 
-	float data[] ={0.254790156597005,0.224040030824219,0.667832727013717,0.844392156527205,0.344462411301042,0.780519652731358,0.675332065747000,0.00671531431847749,0.602170487581795,0.386771194520985,0.915991244131425,0.00115105712910724,0.462449159242329,0.424349039815375,0.460916366028964,0.770159728608609,0.322471807186779,0.784739294760742,0.471357153710612,0.0357627332691179};
-	
+	NMatrix * vweights0 = malloc(sizeof(NMatrix));
+	float  vweights0M[] ={0.775812455441121,0.598968296474700,0.557221023059154,0.299707632069582,0.547657254432423,0.991829829468103,0.483412970471810,0.684773696180478,0.480016831195868,0.746520774837809,0.211422430258003,0.248486726468514,0.0978390795725171,0.708670434511610,0.855745919278928,0.789034249923306,0.742842549759275,0.104522115223072,0.520874909265143,0.846632465315532,0.843613150651208,0.377747297699522,0.272095361461968,0.125303924302938,0.691352539306520,0.555131164040551,0.00847423194155961,0.416031807168918,0.439118205411470,0.784360645016731,0.829997491112413,0.589606438454759,0.142074038271687,0.593313383711502,0.726192799270104,0.428380358133696,0.210792055986133,0.265384268404268,0.993183755212665,0.480756369506705,0.827750131864470,0.603238265822881,0.817841681068066,0.955547170535556,0.650378193390669,0.627647346270778,0.646563331304311,0.0621331286917197,0.938196645878781,0.898716437594415,0.694859162934643,0.310406171229422,0.343545605630366,0.0762294431350499,0.519836940596257,0.608777321469077,0.727159960434458,7.39335770538752e-05,0.169766268796397,0.463291023631989,0.361852151271785,0.952065614552366,0.932193359196872,0.958068660798924,0.206538420408243,0.159700734052653,0.571760567030289,0.592919191548301,0.698610749870688,0.305813464081036,0.393851341078336,0.336885826085107,0.128993041260436,0.0869363561072062,0.548943348806040,0.317733245140830,0.992747576055697,0.723565253441235,0.572101390105790,0.717227171632155,0.976559227688336,0.426990558230810,0.913013771059024,0.897311254281181,0.835228567475913,0.0479581714127454,0.359280569413193,0.295753896108793,0.629125618231216,0.136183801688937,0.374045801279154,0.864781698209823,0.250273591941488,0.0295055785950556,0.999448971390378,0.605142675082282,0.244195121925386,0.438195271553610,0.735093567145817,0.557989092238218};	
+	vweights0->elems = vweights0M;
 
-	float lab[] ={4,1};
-	labels = malloc(sizeof(float)*2);
-	labels[0] =4;
-	labels[1] =1;
-	float labmat[] ={0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0};
-	
+	NFVector * vbias0 = malloc(sizeof(NFVector));
+	float vbaisOM[] ={0,0,0,0,0,0,0,0,0,0};
+	vbias0->elems = vbaisOM;
+
+	NMatrix * data = malloc(sizeof(NMatrix));
+	float dataM[] ={0.254790156597005,0.224040030824219,0.667832727013717,0.844392156527205,0.344462411301042,0.780519652731358,0.675332065747000,0.00671531431847749,0.602170487581795,0.386771194520985,0.915991244131425,0.00115105712910724,0.462449159242329,0.424349039815375,0.460916366028964,0.770159728608609,0.322471807186779,0.784739294760742,0.471357153710612,0.0357627332691179};
+	data->elems = dataM;
+
+
+	NIntVector * labels = malloc(sizeof(NIntVector));
+	int * labelsV = malloc(sizeof(float)*2);
+	labelsV[0] =4;
+	labelsV[1] =1;
+	labels->elems = labelsV;
+
+	NMatrix * labmat = malloc(sizeof(NMatrix));
+	float labmatM[] ={0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0};
+	labmat->elems = labmatM;
+
 	numLayers = 2;
 	hidUnitsPerLayer = malloc(sizeof(int)*numLayers);
 	actfunLists = malloc( sizeof(ActFunKind)*numLayers);
@@ -2358,14 +2535,15 @@ void unitTests(){
 	anndef->layerList[0]->feaElem->xfeatMat = data;
 	anndef->labelMat = labmat;
 
-	float Weight [] ={-0.33792351, 0.13376346, -0.06821584,0.31259467,0.30669813, -0.24911232,-0.24487114,0.3306844, 0.50186652,0.41181357,-0.15575338,0.00109011,0.20097358,0.2330034,-0.14213318,0.06703706, 0.00337744, -0.53263998,0.29886659,0.41916242,-0.14800999,0.12641018, -0.46514654, -0.1436961, 0.47448121,0.16582645,-0.11260893,0.31628802, -0.20064598,0.07459834, 0.4043588,-0.06991851,0.33098616, -0.39023389,0.22375668,0.22410759,-0.30804781,0.46541917 ,-0.06338163,0.44838317,-0.48220484, -0.34584617, -0.49584745,0.19157248,0.10365625,0.03648946,-0.50026342,0.06729657, -0.18658887,0.00325,-0.42514847,0.11742482,0.07223874, -0.5403129, 0.12865095,0.451458, 0.31825324,0.53904824,0.50259215,0.31983069,-0.23524579,0.13683939, -0.02399704, -0.33337114, -0.12891477, -0.48870689,-0.05296651,0.52800974, -0.41195013, -0.41694734, 0.26128892,0.09563634, -0.031075, -0.43037101, -0.2966262, 0.4381399,-0.09119193,0.03927353, -0.54092147, -0.21838607,-0.06913007,0.12285307,0.45811304,0.13773762,0.22565903,-0.38358795,0.26954896,0.36259999,0.14648924, -0.06757814,-0.38058746,0.07493898,0.03091815,0.49451543, -0.02151544,0.00280386, 0.04039804,0.34966835, -0.48515551,0.18559222};
-
+	NMatrix * Weight = malloc(sizeof(NMatrix));
+	float weight [] ={-0.33792351, 0.13376346, -0.06821584,0.31259467,0.30669813, -0.24911232,-0.24487114,0.3306844, 0.50186652,0.41181357,-0.15575338,0.00109011,0.20097358,0.2330034,-0.14213318,0.06703706, 0.00337744, -0.53263998,0.29886659,0.41916242,-0.14800999,0.12641018, -0.46514654, -0.1436961, 0.47448121,0.16582645,-0.11260893,0.31628802, -0.20064598,0.07459834, 0.4043588,-0.06991851,0.33098616, -0.39023389,0.22375668,0.22410759,-0.30804781,0.46541917 ,-0.06338163,0.44838317,-0.48220484, -0.34584617, -0.49584745,0.19157248,0.10365625,0.03648946,-0.50026342,0.06729657, -0.18658887,0.00325,-0.42514847,0.11742482,0.07223874, -0.5403129, 0.12865095,0.451458, 0.31825324,0.53904824,0.50259215,0.31983069,-0.23524579,0.13683939, -0.02399704, -0.33337114, -0.12891477, -0.48870689,-0.05296651,0.52800974, -0.41195013, -0.41694734, 0.26128892,0.09563634, -0.031075, -0.43037101, -0.2966262, 0.4381399,-0.09119193,0.03927353, -0.54092147, -0.21838607,-0.06913007,0.12285307,0.45811304,0.13773762,0.22565903,-0.38358795,0.26954896,0.36259999,0.14648924, -0.06757814,-0.38058746,0.07493898,0.03091815,0.49451543, -0.02151544,0.00280386, 0.04039804,0.34966835, -0.48515551,0.18559222};
+	Weight->elems = weight;
 
 	printf("input data >>>>>\n");
 	printMatrix(anndef->layerList[0]->feaElem->xfeatMat,BATCHSAMPLES,anndef->layerList[0]->dim);
 	
-
-    CopyMatrixOrVec (Weight,anndef->layerList[0]->weights,anndef->layerList[0]->dim*anndef->layerList[0]->srcDim);
+	printMatrix(anndef->layerList[0]->weights,anndef->layerList[0]->dim,anndef->layerList[0]->srcDim);
+    CopyMatrix (Weight,0,anndef->layerList[0]->weights,0,anndef->layerList[0]->dim*anndef->layerList[0]->srcDim);
 	//CopyMatrixOrVec (Weight,anndef->layerList[1]->weights,anndef->layerList[1]->dim*anndef->layerList[1]->srcDim);
 	normOfWeights(anndef);	
 
@@ -2373,31 +2551,31 @@ void unitTests(){
 	printf("Layer 0 weights \n");
 	printMatrix(anndef->layerList[0]->weights,anndef->layerList[0]->dim,anndef->layerList[0]->srcDim);
 	printf("Layer 0 bias \n");
-	printMatrix(anndef->layerList[0]->bias,anndef->layerList[0]->dim,1);
+	printVector(anndef->layerList[0]->bias,anndef->layerList[0]->dim);
 
 	printf("Layer 1 weights \n");
 	printMatrix(anndef->layerList[1]->weights,anndef->layerList[1]->dim,anndef->layerList[1]->srcDim);
 	printf("Layer 1 bias \n");
-	printMatrix(anndef->layerList[1]->bias,anndef->layerList[1]->dim,1);
+	printVector(anndef->layerList[1]->bias,anndef->layerList[1]->dim);
 	printf("done  WEIGHTS OF LAYERS>>>>>>>>>>>>>>>\n");
 
 	//fwdPassOfANN(anndef);
 	
 
-	/*
-	CopyMatrixOrVec (vweightsH,anndef->layerList[0]->gnInfo->vweights,inputDim*anndef->layerList[0]->dim);
+	
+	CopyMatrix (vweightsH,0,anndef->layerList[0]->gnInfo->vweights,0,inputDim*anndef->layerList[0]->dim);
 	printf("vweights of hidden layer\n");
 	printMatrix(anndef->layerList[0]->gnInfo->vweights,10,10);
-	CopyMatrixOrVec (vbaisH,anndef->layerList[0]->gnInfo->vbiases,anndef->layerList[0]->dim);
+	CopyVec (vbaisH,0,anndef->layerList[0]->gnInfo->vbiases,0,anndef->layerList[0]->dim);
 	printf("vbais of hidden layer\n");
-	printMatrix(anndef->layerList[0]->gnInfo->vbiases,1,10);
-	CopyMatrixOrVec (vweights0,anndef->layerList[1]->gnInfo->vweights,anndef->layerList[1]->dim*anndef->layerList[1]->srcDim);
+	printVector(anndef->layerList[0]->gnInfo->vbiases,10);
+	CopyMatrix (vweights0,0,anndef->layerList[1]->gnInfo->vweights,0,anndef->layerList[1]->dim*anndef->layerList[1]->srcDim);
 	printf("vweights of output layer\n");
 	printMatrix(anndef->layerList[1]->gnInfo->vweights,10,10);
-	CopyMatrixOrVec (vbaisO,anndef->layerList[1]->gnInfo->vbiases,anndef->layerList[1]->dim);
+	CopyVec (vbias0,0,anndef->layerList[1]->gnInfo->vbiases,0,anndef->layerList[1]->dim);
 	printf("vbias of hidden layer\n");
-	printMatrix(anndef->layerList[1]->gnInfo->vbiases,1,10);
-	*/
+	printVector(anndef->layerList[1]->gnInfo->vbiases,10);
+	
 	fwdPassOfANN(anndef);
 	//float loglik =computeLogLikelihood(anndef->layerList[numLayers-1]->feaElem->yfeatMat,BATCHSAMPLES,anndef->layerList[numLayers-1]->dim,lab);	
 	//printf("log like %lf\n>>>>",loglik);
@@ -2405,19 +2583,18 @@ void unitTests(){
 	
 	backPropBatch(anndef,FALSE);
 	computeNormOfGradient(anndef);
-	exit(0);
 	updateNeuralNetParams(anndef,0.1,0,0);
 		
 	printf("PRINTING WEIGHTS OF LAYERS>>>>>>>>>>>>>>>\n");
 	printf("Layer 0 weights \n");
 	printMatrix(anndef->layerList[0]->weights,anndef->layerList[0]->dim,anndef->layerList[0]->srcDim);
 	printf("Layer 0 bias \n");
-	printMatrix(anndef->layerList[0]->bias,anndef->layerList[0]->dim,1);
+	printVector(anndef->layerList[0]->bias,anndef->layerList[0]->dim);
 
 	printf("Layer 1 weights \n");
 	printMatrix(anndef->layerList[1]->weights,anndef->layerList[1]->dim,anndef->layerList[1]->srcDim);
 	printf("Layer 1 bias \n");
-	printMatrix(anndef->layerList[1]->bias,anndef->layerList[1]->dim,1);
+	printVector(anndef->layerList[1]->bias,anndef->layerList[1]->dim);
 	printf("done  WEIGHTS OF LAYERS>>>>>>>>>>>>>>>\n");
 
 	
@@ -2430,16 +2607,16 @@ void unitTests(){
 	printMatrix(anndef->layerList[0]->traininfo->dwFeatMat,anndef->layerList[0]->dim,anndef->layerList[0]->srcDim);
 
 	printf("de/db of hidden layer\n");
-	printMatrix(anndef->layerList[0]->traininfo->dbFeaMat,1,10);
+	printVector(anndef->layerList[0]->traininfo->dbFeaMat,10);
 
 	printf("de/dw of output layer\n");
 	printMatrix(anndef->layerList[1]->traininfo->dwFeatMat,anndef->layerList[1]->dim,anndef->layerList[1]->srcDim);
 
 	printf("de/db of output layer\n");
-	printMatrix(anndef->layerList[1]->traininfo->dbFeaMat,1,10);
+	printVector(anndef->layerList[1]->traininfo->dbFeaMat,10);
 
-
-	//runConjugateGradient();
+	printf("Running ConjuageGradient\n");
+	runConjugateGradient();
 	freeMemoryfromANN();
 
 }
@@ -2448,24 +2625,39 @@ void unitTests(){
 //==============================================================================
 
 int main(int argc, char *argv[]){
-	//unitTests();
-	//exit(0);
+	
+	unitTests();
+	exit(0);
 	/**testing gauss newton product**/
 	if (argc != 11 && argc != 13 ){
 		printf("The program expects a minimum of  5 args and a maximum of 6 args : Eg : -C config \n -S traindatafile \n -L traininglabels \n -v validationdata \n -vl validationdataLabels \n optional argument : -T testData \n ");
+		exit(0);
 	}
 	parseCMDargs(argc, argv);
 	//exit(0);
 	initialise();
-	
+	/*NMatrix * Wtest = malloc (sizeof(NMatrix));
 	float  * W = malloc(sizeof(float )*784*500);
 	for (int i =0 ; i< 784*500;i++){
 		W[i] = 0.03; 
 	
 	} 
-	free(W);
-	//CopyMatrixOrVec (W,anndef->layerList[0]->weights,anndef->layerList[0]->dim*anndef->layerList[0]->srcDim);
-    /*
+	Wtest->elems = W;*/
+	//free(W);
+	NMatrix * Wtest;
+	Wtest = CreateMatrix(10,10); 
+	//float  * W = malloc(sizeof(float )*100);
+	for (int i =0 ; i< 100;i++){
+		Wtest->elems[i] = 0.03; 
+	
+	} 
+	//Wtest->elems = W;
+	printMatrix(Wtest,10,10);
+	//free(W);
+	
+	CopyMatrix (Wtest,0,anndef->layerList[0]->weights,0,anndef->layerList[0]->dim*anndef->layerList[0]->srcDim);
+    free(Wtest);
+
     loadDataintoANN(inputData,labelMat);
 	normOfWeights(anndef);
 	fwdPassOfANN(anndef);
@@ -2476,30 +2668,29 @@ int main(int argc, char *argv[]){
 		printMatrix(anndef->layerList[0]->traininfo->dwFeatMat,anndef->layerList[0]->dim,anndef->layerList[0]->srcDim);
 
 		printf("de/db of hidden layer\n");
-		printMatrix(anndef->layerList[0]->traininfo->dbFeaMat,1,7840);
+		printVector(anndef->layerList[0]->traininfo->dbFeaMat,7840);
 
 		printf("de/dw of output layer\n");
 		printMatrix(anndef->layerList[1]->traininfo->dwFeatMat,anndef->layerList[1]->dim,anndef->layerList[1]->srcDim);
 
 		printf("de/db of output layer\n");
-		printMatrix(anndef->layerList[1]->traininfo->dbFeaMat,1,10);
+		printVector(anndef->layerList[1]->traininfo->dbFeaMat,10);
 
         computeNormOfGradient(anndef);
 						
 	
-	free(W);
 	
-
 	exit(0);
-	*/
-	//initialise();
 	
+	//initialise();
+	/*
 
 	if (doHF){
 		TrainDNNHF();
 	}else{
 		TrainDNNGD();
 	}
+	*/
 	freeMemoryfromANN();
 
 }  

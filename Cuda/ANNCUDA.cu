@@ -1,4 +1,4 @@
-#include <cuda.h>
+nclude <cuda.h>
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
 #include "ANNCUDA.h"
@@ -296,5 +296,6 @@ void AddElementstoDiagonalOfMatrix(float * lhs , float * rhs , int dim, float * 
     }
 
 }
+
 
 
