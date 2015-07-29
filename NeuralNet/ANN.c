@@ -31,7 +31,7 @@ static int  maxEpochNum = 5;
 static float initLR = 0.05; 
 static float minLR = 0.0001;
 static  int maxNumOfCGruns = 50;
-static float samplingRateHf = 0.3;
+static float samplingRateHf = 1;
 
 /*training data set and validation data set*/
 static int BATCHSAMPLES; //the number of samples to load into the DNN
@@ -342,6 +342,7 @@ void parseCMDargs(int argc, char *argv[]){
 			printf("parsing training data file \n");
 			inputData = CreateMatrix(trainingDataSetSize,inputDim);
 			initialiseWithZeroMatrix(inputData,trainingDataSetSize*inputDim,sizeof(float)*trainingDataSetSize*inputDim);
+			printf("row  %d col %d  of training data \n", inputData->row,inputData->col);
 			loadMatrix(inputData,argv[i],"train");
 			printf("training samples from %s have been successfully loaded \n",argv[i]);
 			continue;
@@ -1246,6 +1247,7 @@ void backPropBatch(ADLink anndef,Boolean doHessVecProd){
 			layer->errElem->dyFeatMat = layer->feaElem->yfeatMat;
 			/**normalisation because the cost function is mean log-likelihood*/
 			scaleMatrix(layer->feaElem->yfeatMat,(float)1/BATCHSAMPLES,BATCHSAMPLES*layer->dim);
+			//printMatrix(layer->errElem->dyFeatMat,BATCHSAMPLES, layer->dim);
 		}else{
 			// from previous iteration dxfeat that is dyfeat now is dE/dZ.. computing dE/da
 			computeActivationDrv(layer); 
@@ -1879,9 +1881,10 @@ void computeSearchDirMatrixProduct( ADLink anndef,float * searchVecMatrixVecProd
 	LELink layer;
 	for (i = 0; i<anndef->layerNum;i++){
 		layer = anndef->layerList[i];
-		weightsum+= computeDotProductMatrix(layer->cgInfo->searchDirectionUpdateWeights,layer->cgInfo->searchDirectionUpdateWeights,layer->dim*layer->srcDim);
-		biasSum +=  computeDotProductVector(layer->cgInfo->searchDirectionUpdateBias,layer->cgInfo->searchDirectionUpdateBias,layer->dim);
-	}	
+		weightsum+= computeDotProductMatrix(layer->cgInfo->searchDirectionUpdateWeights,layer->traininfo->dwFeatMat,layer->dim*layer->srcDim);
+		biasSum +=  computeDotProductVector(layer->cgInfo->searchDirectionUpdateBias,layer->traininfo->dbFeaMat,layer->dim);
+	}
+	printf("values of p_k * A  p_k %lf n",weightsum + biasSum);	
  	*searchVecMatrixVecProductResult = weightsum + biasSum;
 }
 void computeResidueDotProduct(ADLink anndef, float * residueDotProductResult){
@@ -2055,13 +2058,10 @@ void runConjugateGradient(){
 	int counter = 0;
 	int listcounter = 0;
 
-	printf("R1\n");
 	initialiseResidueaAndSearchDirection(anndef);
-	printf("R2\n");
 	
-	//computeActivationOfOutputLayer(anndef);
+	computeActivationOfOutputLayer(anndef);
 	cost = computeLogLikelihood(anndef->layerList[anndef->layerNum-1]->feaElem->yfeatMat,BATCHSAMPLES,anndef->layerList[anndef->layerNum-1]->dim,minBatchLabels);	
-	printf("R3\n");
 	
 	printf("Initial cost on minibatch %lf\n ",cost);
 	while(numberofRuns < maxNumOfCGruns){
@@ -2134,6 +2134,7 @@ void runConjugateGradient(){
 		counter+=1;
 	}
 	resetdelWeights(anndef);
+	normofDELW(anndef);
 	getBestParamsCG(anndef);
 	//fwdPassOfANN(anndef);
 	//cost = computeLogLikelihood(anndef->layerList[numLayers-1]->feaElem->yfeatMat,BATCHSAMPLES,anndef->layerList[numLayers-1]->dim,minBatchLabels);	
@@ -2207,13 +2208,14 @@ void TrainDNNHF(){
         printf("successfully accumulated Gradients \n");
        
         //perform CG on smaller minibatch
-		setUpMinibatchforHF(anndef);
+		/*setUpMinibatchforHF(anndef);
 		setBatchSizetoHFminiBatch();
 		reinitLayerFeaMatrices(anndef);
 		reinitLayerErrFeaMatrices(anndef);
 		loadMiniBatchintoANN();
 		fwdPassOfANN(anndef);
-		printf("forward pass on minibatch successful \n");
+		printf("forward pass on minibatch successful \n");*/
+		minBatchLabels =labels;
 		runConjugateGradient();
 		printf("successfully completed a run of CG \n");
 
@@ -2342,17 +2344,14 @@ void freeMemoryfromANN(){
 		free(anndef);
 		free(modelSetInfo);
 	}
-	free(inputData);
-	DisposeIntVec(labels);
-	DisposeMatrix(labelMat);
-	DisposeMatrix(validationData);
-	DisposeIntVec(validationLabelIdx);
-	if (miniBatchforHF != NULL ){
-		DisposeMatrix (miniBatchforHF);
-	}
-	if (minBatchLabels !=NULL){
-		DisposeIntVec (minBatchLabels);
-	}
+	if(inputData !=NULL) DisposeMatrix(inputData);
+	if (labels != NULL) DisposeIntVec(labels);
+	if (labelMat !=NULL) DisposeMatrix(labelMat);
+	if (validationData != NULL ) DisposeMatrix(validationData);
+	if (validationLabelIdx != NULL) DisposeIntVec(validationLabelIdx);
+	if (miniBatchforHF != NULL) DisposeMatrix (miniBatchforHF);
+	if (minBatchLabels !=NULL) DisposeIntVec (minBatchLabels);
+	
 	#ifdef CUDA
 	StopCUDA();
 	#endif
@@ -2525,7 +2524,7 @@ void unitTests(){
 	targetDim =10;
 	doHF =TRUE;
 	useGNMatrix =TRUE;
-	maxNumOfCGruns =50;
+	maxNumOfCGruns =10;
 	weightdecay =1;
 
 	
@@ -2542,11 +2541,16 @@ void unitTests(){
 	printf("input data >>>>>\n");
 	printMatrix(anndef->layerList[0]->feaElem->xfeatMat,BATCHSAMPLES,anndef->layerList[0]->dim);
 	
+	printf("printing initialised weights >>>>>\n");
+	printf("layer 0\n");
 	printMatrix(anndef->layerList[0]->weights,anndef->layerList[0]->dim,anndef->layerList[0]->srcDim);
+    printf("layer 1\n");
+	printMatrix(anndef->layerList[1]->weights,anndef->layerList[1]->dim,anndef->layerList[0]->srcDim);
+    
+
     CopyMatrix (Weight,0,anndef->layerList[0]->weights,0,anndef->layerList[0]->dim*anndef->layerList[0]->srcDim);
 	//CopyMatrixOrVec (Weight,anndef->layerList[1]->weights,anndef->layerList[1]->dim*anndef->layerList[1]->srcDim);
-	normOfWeights(anndef);	
-
+	
 	printf("PRINTING WEIGHTS OF LAYERS>>>>>>>>>>>>>>>\n");
 	printf("Layer 0 weights \n");
 	printMatrix(anndef->layerList[0]->weights,anndef->layerList[0]->dim,anndef->layerList[0]->srcDim);
@@ -2558,11 +2562,12 @@ void unitTests(){
 	printf("Layer 1 bias \n");
 	printVector(anndef->layerList[1]->bias,anndef->layerList[1]->dim);
 	printf("done  WEIGHTS OF LAYERS>>>>>>>>>>>>>>>\n");
+	normOfWeights(anndef);	
 
 	//fwdPassOfANN(anndef);
 	
 
-	
+	/*
 	CopyMatrix (vweightsH,0,anndef->layerList[0]->gnInfo->vweights,0,inputDim*anndef->layerList[0]->dim);
 	printf("vweights of hidden layer\n");
 	printMatrix(anndef->layerList[0]->gnInfo->vweights,10,10);
@@ -2575,7 +2580,7 @@ void unitTests(){
 	CopyVec (vbias0,0,anndef->layerList[1]->gnInfo->vbiases,0,anndef->layerList[1]->dim);
 	printf("vbias of hidden layer\n");
 	printVector(anndef->layerList[1]->gnInfo->vbiases,10);
-	
+	*/
 	fwdPassOfANN(anndef);
 	//float loglik =computeLogLikelihood(anndef->layerList[numLayers-1]->feaElem->yfeatMat,BATCHSAMPLES,anndef->layerList[numLayers-1]->dim,lab);	
 	//printf("log like %lf\n>>>>",loglik);
@@ -2583,7 +2588,7 @@ void unitTests(){
 	
 	backPropBatch(anndef,FALSE);
 	computeNormOfGradient(anndef);
-	updateNeuralNetParams(anndef,0.1,0,0);
+	//updateNeuralNetParams(anndef,0.1,0,0);
 		
 	printf("PRINTING WEIGHTS OF LAYERS>>>>>>>>>>>>>>>\n");
 	printf("Layer 0 weights \n");
@@ -2616,6 +2621,7 @@ void unitTests(){
 	printVector(anndef->layerList[1]->traininfo->dbFeaMat,10);
 
 	printf("Running ConjuageGradient\n");
+	minBatchLabels =labels;
 	runConjugateGradient();
 	freeMemoryfromANN();
 
@@ -2626,8 +2632,8 @@ void unitTests(){
 
 int main(int argc, char *argv[]){
 	
-	unitTests();
-	exit(0);
+	//unitTests();
+	//exit(0);
 	/**testing gauss newton product**/
 	if (argc != 11 && argc != 13 ){
 		printf("The program expects a minimum of  5 args and a maximum of 6 args : Eg : -C config \n -S traindatafile \n -L traininglabels \n -v validationdata \n -vl validationdataLabels \n optional argument : -T testData \n ");
@@ -2645,19 +2651,19 @@ int main(int argc, char *argv[]){
 	Wtest->elems = W;*/
 	//free(W);
 	NMatrix * Wtest;
-	Wtest = CreateMatrix(10,10); 
+	Wtest = CreateMatrix(500,784); 
 	//float  * W = malloc(sizeof(float )*100);
-	for (int i =0 ; i< 100;i++){
+	for (int i =0 ; i< 500*784;i++){
 		Wtest->elems[i] = 0.03; 
 	
 	} 
 	//Wtest->elems = W;
-	printMatrix(Wtest,10,10);
+	//printMatrix(Wtest,10,10);
 	//free(W);
 	
 	CopyMatrix (Wtest,0,anndef->layerList[0]->weights,0,anndef->layerList[0]->dim*anndef->layerList[0]->srcDim);
     free(Wtest);
-
+    /*
     loadDataintoANN(inputData,labelMat);
 	normOfWeights(anndef);
 	fwdPassOfANN(anndef);
@@ -2677,20 +2683,20 @@ int main(int argc, char *argv[]){
 		printVector(anndef->layerList[1]->traininfo->dbFeaMat,10);
 
         computeNormOfGradient(anndef);
-						
+	*/					
 	
 	
-	exit(0);
+	
 	
 	//initialise();
-	/*
+	
 
 	if (doHF){
 		TrainDNNHF();
 	}else{
 		TrainDNNGD();
 	}
-	*/
+	
 	freeMemoryfromANN();
 
 }  

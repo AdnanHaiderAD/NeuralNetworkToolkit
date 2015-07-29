@@ -3,7 +3,7 @@ useGNMatrix : TRUE
 initLR : 0.01
 minLR : 0.00000001
 threshold : 0.005
-maxEpochNum : 30
+maxEpochNum : 5
 targetDim : 10
 inputDim : 784
 numLayers : 2
