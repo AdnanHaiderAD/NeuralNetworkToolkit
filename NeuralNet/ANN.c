@@ -1680,7 +1680,7 @@ void computeRactivations(LELink layer){
 	float * buffer  = malloc (sizeof(float)* BATCHSAMPLES*layer->dim);
 	initialiseWithZero(buffer, BATCHSAMPLES*layer->dim);
 	for (i = 0, off = 0; i < BATCHSAMPLES;i++, off += layer->dim){
-		copyMatrixOrVec(layer->bias,buffer,layer->dim);
+		copyMatrixOrVec(layer->bias,buffer+off,layer->dim);
 	}
 	#ifdef CBLAS
 		cblas_sgemm(CblasColMajor, CblasTrans, CblasNoTrans, layer->dim, BATCHSAMPLES, layer->srcDim, 1, layer->weights, layer->srcDim, layer->src->gnInfo->Ractivations, layer->srcDim, 1.0, buffer, layer->dim);
