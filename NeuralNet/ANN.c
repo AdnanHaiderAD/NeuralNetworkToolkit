@@ -2628,8 +2628,8 @@ void unitTests(){
 	printVector(anndef->layerList[1]->traininfo->dbFeaMat,10);
 
 	printf("Running ConjuageGradient\n");
-	minBatchLabels =labels;
-	runConjugateGradient();
+	//minBatchLabels =labels;
+	//runConjugateGradient();
 	freeMemoryfromANN();
 
 }
@@ -2639,8 +2639,8 @@ void unitTests(){
 
 int main(int argc, char *argv[]){
 	
-	//unitTests();
-	//exit(0);
+	unitTests();
+	exit(0);
 	/**testing gauss newton product**/
 	if (argc != 11 && argc != 13 ){
 		printf("The program expects a minimum of  5 args and a maximum of 6 args : Eg : -C config \n -S traindatafile \n -L traininglabels \n -v validationdata \n -vl validationdataLabels \n optional argument : -T testData \n ");
