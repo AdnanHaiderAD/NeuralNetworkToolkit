@@ -1622,7 +1622,9 @@ void computeSearchDirMatrixProduct( ADLink anndef,float * searchVecMatrixVecProd
 		weightsum+= cblas_sdot(layer->dim*layer->srcDim,layer->cgInfo->searchDirectionUpdateWeights,1,layer->traininfo->dwFeatMat,1);
 		biasSum += cblas_sdot(layer->dim,layer->cgInfo->searchDirectionUpdateBias,1,layer->traininfo->dbFeaMat,1);
 		#endif
-	}	
+	}
+	printf("values of p_k * A  p_k %lf n",weightsum + biasSum);	
+ 		
  	*searchVecMatrixVecProductResult = weightsum + biasSum;
 }
 void computeResidueDotProduct(ADLink anndef, float * residueDotProductResult){
@@ -1925,11 +1927,12 @@ void TrainDNNHF(){
         printf("successfully accumulated Gradients \n");
        
         //perform CG on smaller minibatch
-		setUpMinibatchforHF(anndef);
+		/*setUpMinibatchforHF(anndef);
 		setBatchSizetoHFminiBatch();
 		reinitLayerFeaMatrices(anndef);
 		reinitLayerErrFeaMatrices(anndef);
-		loadMiniBatchintoANN();
+		loadMiniBatchintoANN();*/
+		minBatchLabels =labels;
 		fwdPassOfANN(anndef);
 		printf("forward pass on minibatch successful \n");
 		runConjugateGradient();
