@@ -9,7 +9,7 @@ inputDim : 784
 numLayers : 2
 trainingDataSetSize : 30000
 validationDataSetSize : 10000
-hiddenUnitsPerLayer : 500
+hiddenUnitsPerLayer : 10
 activationfunctionsPerLayer : TANH,SOFTMAX
 Errfunc : XENT
 

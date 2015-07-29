@@ -1679,9 +1679,6 @@ void computeRactivations(LELink layer){
 	int i,off;
 	float * buffer  = malloc (sizeof(float)* BATCHSAMPLES*layer->dim);
 	initialiseWithZero(buffer, BATCHSAMPLES*layer->dim);
-	for (i = 0, off = 0; i < BATCHSAMPLES;i++, off += layer->dim){
-		copyMatrixOrVec(layer->bias,buffer+off,layer->dim);
-	}
 	#ifdef CBLAS
 		cblas_sgemm(CblasColMajor, CblasTrans, CblasNoTrans, layer->dim, BATCHSAMPLES, layer->srcDim, 1, layer->weights, layer->srcDim, layer->src->gnInfo->Ractivations, layer->srcDim, 1.0, buffer, layer->dim);
 	#endif
@@ -1927,12 +1924,12 @@ void TrainDNNHF(){
         printf("successfully accumulated Gradients \n");
        
         //perform CG on smaller minibatch
-		/*setUpMinibatchforHF(anndef);
+		setUpMinibatchforHF(anndef);
 		setBatchSizetoHFminiBatch();
 		reinitLayerFeaMatrices(anndef);
 		reinitLayerErrFeaMatrices(anndef);
-		loadMiniBatchintoANN();*/
-		minBatchLabels =labels;
+		loadMiniBatchintoANN();
+		//minBatchLabels =labels;
 		fwdPassOfANN(anndef);
 		printf("forward pass on minibatch successful \n");
 		runConjugateGradient();
@@ -2320,8 +2317,8 @@ int main(int argc, char *argv[]){
 	//exit(0);
 	initialise();
 	
-	float  * W = malloc(sizeof(float )*784*500);
-	for (int i =0 ; i< 784*500;i++){
+	float  * W = malloc(sizeof(float )*784*10);
+	for (int i =0 ; i< 784*10;i++){
 		W[i] = 0.03; 
 	
 	} 
