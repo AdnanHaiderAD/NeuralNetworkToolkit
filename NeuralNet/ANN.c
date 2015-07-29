@@ -2264,7 +2264,7 @@ void unitTests(){
 	
 	backPropBatch(anndef,FALSE);
 	computeNormOfGradient(anndef);
-	exit(0);
+	
 	updateNeuralNetParams(anndef,0.1,0,0);
 		
 	printf("PRINTING WEIGHTS OF LAYERS>>>>>>>>>>>>>>>\n");
@@ -2307,8 +2307,8 @@ void unitTests(){
 //==============================================================================
 
 int main(int argc, char *argv[]){
-	//unitTests();
-	//exit(0);
+	unitTests();
+	exit(0);
 	/**testing gauss newton product**/
 	if (argc != 11 && argc != 13 ){
 		printf("The program expects a minimum of  5 args and a maximum of 6 args : Eg : -C config \n -S traindatafile \n -L traininglabels \n -v validationdata \n -vl validationdataLabels \n optional argument : -T testData \n ");
@@ -2317,8 +2317,8 @@ int main(int argc, char *argv[]){
 	//exit(0);
 	initialise();
 	
-	float  * W = malloc(sizeof(float )*784*10);
-	for (int i =0 ; i< 784*10;i++){
+	float  * W = malloc(sizeof(float )*784*500);
+	for (int i =0 ; i< 784*500;i++){
 		W[i] = 0.03; 
 	
 	} 
