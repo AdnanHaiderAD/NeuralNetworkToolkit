@@ -428,7 +428,8 @@ void setUpMinibatchforHF(ADLink anndef){
  		miniBatchforHF = CreateMatrix(minibatchSize,inputDim);
  		minBatchLabels = CreateIntVec(minibatchSize);
  	}
-
+ 	initialiseWithZeroMatrix(miniBatchforHF,minibatchSize,sizeof(float)*minibatchSize*inputDim);
+ 	initialiseWithZeroIVector (minBatchLabels,minibatchSize,sizeof(float)*minibatchSize);
  	int * randomIndices = malloc(sizeof(int)*BATCHSAMPLES);
  	for(i = 0; i < BATCHSAMPLES;i++)randomIndices[i] =i;
  	shuffle(randomIndices,BATCHSAMPLES);	
@@ -1948,9 +1949,6 @@ void computeRactivations(LELink layer){
 	NMatrix * buffer;
 	buffer = CreateMatrix( BATCHSAMPLES,layer->dim);
 	initialiseWithZeroMatrix(buffer, BATCHSAMPLES*layer->dim,sizeof(float)*BATCHSAMPLES*layer->dim);
-	for (i = 0, off = 0; i < BATCHSAMPLES;i++, off += layer->dim){
-		CopyVecToMat (layer->bias,0,buffer,0,layer->dim);
-	}
 	#ifdef CBLAS
 		cblas_sgemm(CblasColMajor, CblasTrans, CblasNoTrans, layer->dim, BATCHSAMPLES, layer->srcDim, 1, layer->weights->elems, layer->srcDim, layer->src->gnInfo->Ractivations->elems, layer->srcDim, 1.0, buffer->elems, layer->dim);
 	#else
@@ -2208,14 +2206,14 @@ void TrainDNNHF(){
         printf("successfully accumulated Gradients \n");
        
         //perform CG on smaller minibatch
-		/*setUpMinibatchforHF(anndef);
+		setUpMinibatchforHF(anndef);
 		setBatchSizetoHFminiBatch();
 		reinitLayerFeaMatrices(anndef);
 		reinitLayerErrFeaMatrices(anndef);
 		loadMiniBatchintoANN();
 		fwdPassOfANN(anndef);
-		printf("forward pass on minibatch successful \n");*/
-		minBatchLabels =labels;
+		printf("forward pass on minibatch successful \n");
+		//minBatchLabels =labels;
 		runConjugateGradient();
 		printf("successfully completed a run of CG \n");
 
@@ -2386,6 +2384,15 @@ void printLayerMatrices(ADLink anndef){
 
 	}	
 }
+void printIArray(int *vector , int dim){
+	int i ;
+	printf("[ ");
+	for (i = 0; i < dim; i++){
+		printf( " %d ",vector[i]);
+	}	
+	printf("]\n ");
+}
+
 
 void printArray(float *vector , int dim){
 	int i ;

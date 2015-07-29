@@ -283,6 +283,7 @@ void freeMemoryfromANN();
 void printLayerMatrices(ADLink anndef);
 void printLayerDWMatrices(ADLink anndef);
 void printArray(float * vector , int dim);
+void printIArray(int *vector , int dim);
 void printVector(NFVector * vector , int dim);
 void UnitTest_computeGradientDotProd();
 void printWeights(ADLink anndef, int i);
