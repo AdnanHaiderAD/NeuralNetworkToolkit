@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <float.h>
-#include "/Users/adnan/NeuralNetworkToolkit/Cuda/ANNCUDA.h"
+#include "/home/mifs/mah90/NeuralNetworkToolkit/Cuda/ANNCUDA.h"
 
 #ifndef M_PI
 	#define M_PI 3.14159265358979323846
@@ -16,7 +16,7 @@
 #endif
 
 #ifdef CBLAS
-#include "/Users/adnan/NeuralNet/CBLAS/include/cblas.h"
+#include "/home/mifs/mah90/NeuralNetworkToolkit/CBLAS/include/cblas.h"
 #endif
 
 #ifdef CUDA 
