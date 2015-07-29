@@ -1949,7 +1949,7 @@ void computeRactivations(LELink layer){
 	buffer = CreateMatrix( BATCHSAMPLES,layer->dim);
 	initialiseWithZeroMatrix(buffer, BATCHSAMPLES*layer->dim,sizeof(float)*BATCHSAMPLES*layer->dim);
 	for (i = 0, off = 0; i < BATCHSAMPLES;i++, off += layer->dim){
-		CopyVecToMat (layer->bias,0,buffer,off,layer->dim);
+		CopyVecToMat (layer->bias,0,buffer,0,layer->dim);
 	}
 	#ifdef CBLAS
 		cblas_sgemm(CblasColMajor, CblasTrans, CblasNoTrans, layer->dim, BATCHSAMPLES, layer->srcDim, 1, layer->weights->elems, layer->srcDim, layer->src->gnInfo->Ractivations->elems, layer->srcDim, 1.0, buffer->elems, layer->dim);
