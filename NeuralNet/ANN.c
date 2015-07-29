@@ -26,7 +26,7 @@ static int  maxEpochNum = 5;
 static double initLR = 0.05; 
 static double minLR = 0.0001;
 static  int maxNumOfCGruns = 50;
-static double samplingRateHf = 0.3;
+static double samplingRateHf = 1;
 
 /*training data set and validation data set*/
 static int BATCHSAMPLES; //the number of samples to load into the DNN
@@ -1685,9 +1685,6 @@ void computeRactivations(LELink layer){
 	int i,off;
 	double * buffer  = malloc (sizeof(double)* BATCHSAMPLES*layer->dim);
 	initialiseWithZero(buffer, BATCHSAMPLES*layer->dim);
-	for (i = 0, off = 0; i < BATCHSAMPLES;i++, off += layer->dim){
-		copyMatrixOrVec(layer->bias,buffer,layer->dim);
-	}
 	#ifdef CBLAS
 		cblas_dgemm(CblasColMajor, CblasTrans, CblasNoTrans, layer->dim, BATCHSAMPLES, layer->srcDim, 1, layer->weights, layer->srcDim, layer->src->gnInfo->Ractivations, layer->srcDim, 1.0, buffer, layer->dim);
 	#endif
@@ -1938,6 +1935,7 @@ void TrainDNNHF(){
 		reinitLayerFeaMatrices(anndef);
 		reinitLayerErrFeaMatrices(anndef);
 		loadMiniBatchintoANN();
+		//minBatchLabels =labels;
 		fwdPassOfANN(anndef);
 		printf("forward pass on minibatch successful \n");
 		runConjugateGradient();
@@ -2324,14 +2322,14 @@ int main(int argc, char *argv[]){
 	parseCMDargs(argc, argv);
 	//exit(0);
 	initialise();
-	double  * W = malloc(sizeof(double )*784*10);
-	for (int i =0 ; i< 784*10;i++){
+	double  * W = malloc(sizeof(double )*784*500);
+	for (int i =0 ; i< 784*500;i++){
 		W[i] = 0.03; 
 	
 	} 
 	
 	copyMatrixOrVec(W,anndef->layerList[0]->weights,anndef->layerList[0]->dim*anndef->layerList[0]->srcDim);
-    
+   /* 
     loadDataintoANN(inputData,labelMat);
 	normOfWeights(anndef);
 	fwdPassOfANN(anndef);
@@ -2352,11 +2350,11 @@ int main(int argc, char *argv[]){
 
         computeNormOfGradient(anndef);
 						
-	
+	*/
 	free(W);
 	
 
-	exit(0);
+	//exit(0);
 	//initialise();
 	
 
