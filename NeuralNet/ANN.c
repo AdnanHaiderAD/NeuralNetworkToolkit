@@ -26,7 +26,7 @@ static int  maxEpochNum = 5;
 static float initLR = 0.05; 
 static float minLR = 0.0001;
 static  int maxNumOfCGruns = 50;
-static float samplingRateHf = 0.3;
+static float samplingRateHf = 1;
 
 /*training data set and validation data set*/
 static int BATCHSAMPLES; //the number of samples to load into the DNN
@@ -2322,8 +2322,9 @@ int main(int argc, char *argv[]){
 		W[i] = 0.03; 
 	
 	} 
-	free(W);
-	//copyMatrixOrVec(W,anndef->layerList[0]->weights,anndef->layerList[0]->dim*anndef->layerList[0]->srcDim);
+	//free(W);
+	copyMatrixOrVec(W,anndef->layerList[0]->weights,anndef->layerList[0]->dim*anndef->layerList[0]->srcDim);
+    free(W);
     /*
     loadDataintoANN(inputData,labelMat);
 	normOfWeights(anndef);
