@@ -1,8 +1,9 @@
-nclude <cuda.h>
+#include <cuda.h>
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
-#include "ANNCUDA.h"
-
+#include "ANNCUDA.cuh"
+#include <stdio.h>
+extern "C"
 #define CEIL(x,y) (((x)+(y)-1) / (y))
 cublasHandle_t handle;				/*  */
 
@@ -32,7 +33,7 @@ void initialiseDeviceArrayWithZero(void *devPtr,size_t size){
 	cudaMemset(devPtr, 0, size);
 }
 /*  */
-void SyncHost2Dev(void *hostPtr, float *devPtr, size_t size) {
+void SyncHost2Dev(void *hostPtr, void *devPtr, size_t size) {
     cudaMemcpy(devPtr, hostPtr, size, cudaMemcpyHostToDevice);	
 }
 
@@ -184,7 +185,7 @@ void ApplySoftmaxActCUDA(float *srcPtr, int row, int col, float *dstPtr) {
     int nBlocks;
 
     nBlocks = CEIL(row, THREADPERBLOCK);
-    if (nBlocks > MAXBLOCKNUM){}
+    if (nBlocks > MAXBLOCKNUM){
         printf("ApplySoftmaxActCUDA: Block number exceeds the maximum\n");
     	exit(0);
     }
@@ -194,35 +195,38 @@ void ApplySoftmaxActCUDA(float *srcPtr, int row, int col, float *dstPtr) {
 //-------------------------------------------------------------------------------------------------------------------
 /*The following routines are used for back propagation*/
 //-------------------------------------------------------------------------------------------------------------------
-__global__ void  HKern_fillArrayWithValue(float* array,float value,int len){
+__global__ void  HKern_fillArrayWithValue(float * array,float value,int len){
 	int pos;
-	pos = (blockIdx.x * blockDim.x) + threadIdx.x
+	pos = (blockIdx.x * blockDim.x) + threadIdx.x;
 	if (pos<len){
 		array[pos] = value;
 	}
 }
 void sumColsOfMatrix(float *dyFeatMat,float *dbFeatMat,int dim,int batchsamples){
  	int nBlocks;
- 	float * array;
+ 	float * ones;
+    float value = 1.0;
  	const float alpha = 1;
  	const float beta = 0;
- 	cudaMalloc((**void)&array,sizeof(float)*batchsamples);
-	nBlocks = CEIL(batchsamples, THREADPERBLOCK);
-    if (nBlocks > MAXBLOCKNUM){}
+
+    cudaMalloc(&ones,sizeof(float)*batchsamples);
+	
+    nBlocks = CEIL(batchsamples, THREADPERBLOCK);
+    
+    if (nBlocks > MAXBLOCKNUM){
         printf("ApplySoftmaxActCUDA: Block number exceeds the maximum\n");
     	exit(0);
     }
-    HKern_fillArrayWithValue<<<nBlocks, THREADPERBLOCK>>>(array,value,batchsamples);
+    HKern_fillArrayWithValue<<<nBlocks, THREADPERBLOCK>>>(ones,value,batchsamples);
     
     cublasSgemv(handle,CUBLAS_OP_N, dim,batchsamples,&alpha,dyFeatMat,dim,ones,1,&beta,dbFeatMat,1);
-	DevDispose(array);
+	DevDispose(ones);
 }
 
 
 __global__ void HKern_ApplyDerivativeSigmoidAct(float * srcPtr, int len, float *dstPtr){
 	int pos;
-    float floatVal;
-
+   
     pos = (blockIdx.x * blockDim.x) + threadIdx.x;
     if (pos < len) {
         dstPtr[pos] = dstPtr[pos] * (srcPtr[pos] * (1 - srcPtr[pos])) ;
@@ -276,13 +280,13 @@ void HNBlasNTgemmCUDA(int m, int n, int k, float alpha, float *A, float *B, floa
     }
 
 }
-/-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
 /*The following routines are used for computing the hessian of the loss function with respect to network outputs*/
 //-------------------------------------------------------------------------------------------------------------------
-__global__ void HKern_AddElementstoDiagonalOfMatrix(float * lhs , float * rhs , int dim float * dst){
+__global__ void HKern_AddElementstoDiagonalOfMatrix(float * lhs , float * rhs , int dim ,float * dst){
 	int pos;
 	pos = (blockIdx.x * blockDim.x) + threadIdx.x;
-    if (pos<len){
+    if (pos<dim){
     	dst[pos*(dim+1)] = lhs[pos*(dim+1)]+ rhs[pos]; 
     }
 }
@@ -296,6 +300,16 @@ void AddElementstoDiagonalOfMatrix(float * lhs , float * rhs , int dim, float * 
     }
 
 }
+void computeMatVecProductCUDA(int m ,int n, float alpha,float * A, int lda, float * B,int incx, float beta, float * C,int incy ){
+    cublasStatus_t status;
+    status = cublasSgemv(handle,CUBLAS_OP_N,m,n,&alpha,A,lda,B,incx,&beta,C,incy);
+    if (status != CUBLAS_STATUS_SUCCESS) {
+        printf("computeMatVecProduct: CUBLAS library gemm function failed\n");
+        exit(0);
+    }        
+}
+
+
 
 
 

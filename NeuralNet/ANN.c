@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include <time.h>
 #include <float.h>
-#include "/home/mifs/mah90/NeuralNetworkToolkit/Cuda/ANNCUDA.h"
 
 #ifndef M_PI
 	#define M_PI 3.14159265358979323846
@@ -16,13 +15,10 @@
 #endif
 
 #ifdef CBLAS
-#include "/home/mifs/mah90/NeuralNetworkToolkit/CBLAS/include/cblas.h"
+#include "../CBLAS/include/cblas.h"
 #endif
 
-#ifdef CUDA 
-#include
-StartCUDA();
-#endif
+#include "ANNCUDA.cuh"
 
 /*hyper-parameters deep Neural Net training initialised with default values*/
 static float weightdecay = 1;
@@ -816,7 +812,7 @@ void addMatrix(NMatrix * weights, NMatrix * dwFeatMat,int dim, float lambda){
 		cblas_saxpy(dim,lambda,weights->elems,1,dwFeatMat->elems,1);
 	#else
 		#ifdef CUDA
-			AddNSegmentCUDA(weights->deviceElems,dim,dwFeatMat->deviceElems,lambda)
+			AddNSegmentCUDA(weights->deviceElems,dim,dwFeatMat->deviceElems,lambda);
 		#else
 			int i;
 			for (i =0;i<dim;i++){
@@ -831,7 +827,7 @@ void addVec(NFVector * weights, NFVector * dwFeatMat,int dim, float lambda){
 		cblas_saxpy(dim,lambda,weights->elems,1,dwFeatMat->elems,1);
 	#else
 		#ifdef CUDA
-			AddNSegmentCUDA(weights->deviceElems,dim,dwFeatMat->deviceElems,lambda)
+			AddNSegmentCUDA(weights->deviceElems,dim,dwFeatMat->deviceElems,lambda);
 		#else
 			int i;
 			for (i =0;i<dim;i++){
@@ -883,7 +879,7 @@ void subtractMatrix(NMatrix *dyfeat, NMatrix* labelMat, int dim, float lambda){
 		//CPU version
 		int i;
 		for (i = 0; i<dim;i++){
-			dyfeat[i] = dyfeat[i]-lambda*labelMat[i];
+			dyfeat->elems[i] = dyfeat->elems[i]-lambda*labelMat->elems[i];
 		}
 		#endif
 	#endif
@@ -1049,9 +1045,9 @@ void computeLinearActivation(LELink layer){
 		#ifdef CUDA
 		int i,off;
 		for (i = 0, off = 0; i < BATCHSAMPLES;i++, off += layer->dim){
-			CopyNSegmentCUDA(layer->bias->deviceElems, layer->dim, layer->feaElem-.yfeatMat->deviceElems+off);
+			CopyNSegmentCUDA(layer->bias->deviceElems, layer->dim, layer->feaElem->yfeatMat->deviceElems+off);
 		}
-		void HNBlasTNgemmCUDA(layer->dim, BATCHSAMPLES, layer->srcDim, 1, layer->weights->deviceElems,layer->feaElem->xfeatMat->deviceElems, 1, layer->feaElem->yfeatMat->deviceElems)
+		HNBlasTNgemmCUDA(layer->dim, BATCHSAMPLES, layer->srcDim, 1, layer->weights->deviceElems,layer->feaElem->xfeatMat->deviceElems, 1, layer->feaElem->yfeatMat->deviceElems);
 		#endif
 	#endif
 }
@@ -1110,7 +1106,7 @@ void sumColsOfMatrix(NMatrix *dyFeatMat,NFVector *dbFeatMat,int dim,int batchsam
 		free (ones);
 	#else
 		#ifdef CUDA
-			sumColsOfMatrixCUDA(dyFeatMat->deviceElems,dbFeatMat->deviceElems,int dim,int batchsamples);
+			sumColsOfMatrixCUDA(dyFeatMat->deviceElems,dbFeatMat->deviceElems, dim,batchsamples);
 		#endif	
 	#endif
 }
@@ -1120,7 +1116,7 @@ void computeActivationDrv (LELink layer){
 	switch (layer->actfuncKind){
 		case SIGMOID:
 			#ifdef CUDA
-				computeSigmoidDrvCUDA(layer->feaElem->yfeatMat->deviceElems,layer->dim*BATCHSAMPLES, layer->errElem->dyFeatMat->deviceElems)
+				computeSigmoidDrvCUDA(layer->feaElem->yfeatMat->deviceElems,layer->dim*BATCHSAMPLES, layer->errElem->dyFeatMat->deviceElems);
 			#else 				
 			//CPU verion
 		  		for (i = 0; i<layer->dim*BATCHSAMPLES;i++){
@@ -1131,7 +1127,7 @@ void computeActivationDrv (LELink layer){
 			break;
 		case TANH:
 			#ifdef CUDA
-				computeTanHDrvCUDA(layer->feaElem->yfeatMat->deviceElems,layer->dim*BATCHSAMPLES, layer->errElem->dyFeatMat->deviceElems)
+				computeTanHDrvCUDA(layer->feaElem->yfeatMat->deviceElems,layer->dim*BATCHSAMPLES, layer->errElem->dyFeatMat->deviceElems);
 			#else 				
 			//CPU verion
 				for (i = 0; i<layer->dim*BATCHSAMPLES;i++){
@@ -1180,7 +1176,7 @@ void computeLossHessSoftMax(LELink layer){
 				const float alpha = 1;
 				const float beta = 0;
 				AddElementstoDiagonalOfMatrix(diaP->deviceElems,yfeatVec->deviceElems,layer->dim,diaP->deviceElems);
-				cublasSgemv(handle,CUBLAS_OP_N,layer->dim,layer->dim,&alpha,diaP->deviceElems,layer->dim,RactivationVec->deviceElems,1,&beta,result->deviceElems,1);
+				computeMatVecProductCUDA(layer->dim,layer->dim,alpha,diaP->deviceElems,layer->dim,RactivationVec->deviceElems,1,beta,result->deviceElems,1);
 			#endif
 
 		#endif
@@ -1972,7 +1968,7 @@ void computeVweightsProjection(LELink layer){
 		cblas_sgemm(CblasColMajor, CblasTrans, CblasNoTrans, layer->dim, BATCHSAMPLES, layer->srcDim, 1, layer->gnInfo->vweights->elems, layer->srcDim, layer->feaElem->xfeatMat->elems, layer->srcDim, 1, layer->gnInfo->Ractivations->elems, layer->dim);
 	#else
 		#ifdef CUDA
-		HNBlasTNgemmCUDA(layer->dim, BATCHSAMPLES, layer->srcDim, 1, layer->gnInfo->vweights->deviceElems,layer->feaElem->xfeatMat->deviceElems, 1, l layer->gnInfo->Ractivations->deviceElems);
+		HNBlasTNgemmCUDA(layer->dim, BATCHSAMPLES, layer->srcDim, 1, layer->gnInfo->vweights->deviceElems,layer->feaElem->xfeatMat->deviceElems, 1,  layer->gnInfo->Ractivations->deviceElems);
 		#endif
 	#endif	
 }
@@ -2421,6 +2417,7 @@ int k,j;
 int r = row;
 int c = col;
 #ifdef CUDA
+
 SyncDev2Host(matrix->deviceElems,matrix->elems,sizeof(float)*row*col);
 #endif
 for (j = 0 ; j< r;j++){
@@ -2475,8 +2472,9 @@ void UnitTest_computeGradientDotProd(){
 	float sum =0;
 	for ( i  =0 ; i < anndef->layerNum; i++){
 		layer = anndef->layerList[i];
+		#ifdef CBLAS
 		sum += cblas_sdot(layer->dim*layer->srcDim,layer->traininfo->updatedWeightMat->elems, 1, layer->traininfo->updatedWeightMat->elems,1);
-
+		#endif
 	}
 	printf("dotproduct of cache gradient vector is %lf \n",sum);
 	
@@ -2638,7 +2636,10 @@ void unitTests(){
 //==============================================================================
 
 int main(int argc, char *argv[]){
-	
+	#ifdef CUDA 
+	printf("Using Cuda\n");
+	StartCUDA();
+	#endif
 	unitTests();
 	exit(0);
 	/**testing gauss newton product**/
@@ -2660,7 +2661,8 @@ int main(int argc, char *argv[]){
 	NMatrix * Wtest;
 	Wtest = CreateMatrix(500,784); 
 	//float  * W = malloc(sizeof(float )*100);
-	for (int i =0 ; i< 500*784;i++){
+	int i;
+	for ( i =0 ; i< 500*784;i++){
 		Wtest->elems[i] = 0.03; 
 	
 	} 

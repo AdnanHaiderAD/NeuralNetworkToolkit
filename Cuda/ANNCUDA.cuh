@@ -1,3 +1,8 @@
+#ifdef __cplusplus
+
+extern "C"
+
+#endif
 
 #define THREADPERBLOCK 256                      /*  */
 #define MAXBLOCKNUM 2147483647  
@@ -10,7 +15,7 @@ void StopCUDA(void);
 //-------------------------------------------------------------------------------------------------------------------
 void SyncDev2Host(void *devPtr, void *hostPtr, size_t size);
 void initialiseDeviceArrayWithZero(void *devPtr,size_t size);
-void SyncHost2Dev(void *hostPtr, float *devPtr, size_t size);
+void SyncHost2Dev(void *hostPtr, void *devPtr, size_t size);
 void DevDispose(void *devPtr); 
 void DevNew(void **devAddr, size_t size);
 
@@ -45,3 +50,4 @@ void HNBlasNTgemmCUDA(int m, int n, int k, float alpha, float *A, float *B, floa
 /*The following routines are used for computing the hessian of the loss function with respect to network outputs*/
 //-------------------------------------------------------------------------------------------------------------------
  void AddElementstoDiagonalOfMatrix(float * lhs , float * rhs , int dim, float * dst);
+ void computeMatVecProductCUDA(int m ,int n, float alpha, float * A, int lda, float * B,int incx, float beta, float * C, int incy );
