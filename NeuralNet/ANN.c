@@ -283,7 +283,7 @@ void parseCfg(char * filepath){
 			}
 			token = strtok(list,",");
 			cleanString(token);
-		   int count = 0;
+		    int count = 0;
 			while(token !=NULL){
 			if (strcmp(token,"SIGMOID")==0){
 				*(actfunLists+count) = SIGMOID ;
@@ -557,9 +557,9 @@ void initialiseWeights(float *weights,int dim,int srcDim, ActFunKind actfunc){
 			/* bengio;s proposal for a new tpye of initialisation to ensure 
 			the variance of error derivatives are comparable accross layers*/
 			if (actfunc == SIGMOID){
-				*weights = 4* genrandWeight(sqrt(6)/sqrt(dim+srcDim+1));
+				weights[i*srcDim+j] = 4* genrandWeight(sqrt(6)/sqrt(dim+srcDim+1));
 			}else{
-				*weights = genrandWeight(sqrt(6)/sqrt(dim+srcDim+1));
+				weights[i*srcDim+j] = genrandWeight(sqrt(6)/sqrt(dim+srcDim+1));
 			}
 			weights = weights + 1;
 		}
