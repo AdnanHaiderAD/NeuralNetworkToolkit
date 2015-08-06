@@ -33,6 +33,15 @@ static float momentum = 0;
 static int  maxEpochNum = 5; 
 static float initLR = 0.05; 
 static float minLR = 0.0001;
+
+/*hyper-parameters specific to Rprop training*/
+static float init_delta = 0.5;//default
+static float delta_max = 10; //default
+static float delta_min = 0; //default
+static float eta_plus = 1.2; //default
+static  float eta_minus = 0.5 ;//default
+
+/*hyper parameters specific to HF training */
 static  int maxNumOfCGruns = 50;
 static float samplingRateHf = 1;
 
@@ -52,6 +61,7 @@ static int validationDataSetSize;
 /*configurations for DNN architecture*/
 static Boolean doHF = FALSE;
 static Boolean useGNMatrix = FALSE;
+static Boolean doRprop = FALSE;
 static MSLink modelSetInfo = NULL;
 static ActFunKind *actfunLists;
 static int *hidUnitsPerLayer;
@@ -252,6 +262,16 @@ void parseCfg(char * filepath){
 			}
 			continue;
 		}
+		if (strcmp(token,"doRprop")==0){
+			token = strtok(NULL," : ");
+			if ((pos=strchr(token, '\n')) != NULL){*pos = '\0';}
+			if (strcmp("TRUE",token)==0){
+				doRprop = TRUE;
+			}else {
+				doRprop = FALSE;
+			}
+			continue;
+		}
 		if (strcmp(token,"useGNMatrix")==0){
 			token = strtok(NULL," : ");
 			if ((pos=strchr(token, '\n')) != NULL){*pos = '\0';}
@@ -264,6 +284,41 @@ void parseCfg(char * filepath){
 		}
 		
 		if (strcmp(token,"samplingRateHf")==0){
+			token = strtok(NULL," : ");
+			if ((pos=strchr(token, '\n')) != NULL){*pos = '\0';}
+			samplingRateHf = (float) strtod (token,NULL);
+			token = strtok(NULL," : ");
+			continue;
+		}
+		if (strcmp(token,"delta_min")==0){
+			token = strtok(NULL," : ");
+			if ((pos=strchr(token, '\n')) != NULL){*pos = '\0';}
+			samplingRateHf = (float) strtod (token,NULL);
+			token = strtok(NULL," : ");
+			continue;
+		}
+		if (strcmp(token,"delta_max")==0){
+			token = strtok(NULL," : ");
+			if ((pos=strchr(token, '\n')) != NULL){*pos = '\0';}
+			samplingRateHf = (float) strtod (token,NULL);
+			token = strtok(NULL," : ");
+			continue;
+		}
+		if (strcmp(token,"eta_minus")==0){
+			token = strtok(NULL," : ");
+			if ((pos=strchr(token, '\n')) != NULL){*pos = '\0';}
+			samplingRateHf = (float) strtod (token,NULL);
+			token = strtok(NULL," : ");
+			continue;
+		}
+		if (strcmp(token,"eta_plus")==0){
+			token = strtok(NULL," : ");
+			if ((pos=strchr(token, '\n')) != NULL){*pos = '\0';}
+			samplingRateHf = (float) strtod (token,NULL);
+			token = strtok(NULL," : ");
+			continue;
+		}
+		if (strcmp(token,"init_delta")==0){
 			token = strtok(NULL," : ");
 			if ((pos=strchr(token, '\n')) != NULL){*pos = '\0';}
 			samplingRateHf = (float) strtod (token,NULL);
@@ -409,6 +464,42 @@ void loadDataintoANN(NMatrix *samples, NMatrix *labelMat){
 //-------------------------------------------------------------------------------------------------------------------
 /**this section of the src code deals with initialisation of ANN **/
 //-------------------------------------------------------------------------------------------------------------------
+void setUpForRprop(ADLink anndef){
+	LELink layer;
+	int i,srdim,dim;
+	printf("Setting additional structures for Rprop training \n");
+	for (i = 0; i<anndef->layerNum;i++){
+		layer = anndef->layerList[i];
+		//set up structure to accumulate gradients
+		if (layer->traininfo->updatedWeightMat == NULL && layer->traininfo->updatedBiasMat == NULL){
+			layer->traininfo->updatedWeightMat = CreateMatrix(layer->dim ,layer->srcDim);
+			layer->traininfo->updatedBiasMat = CreateFloatVec(layer->dim);
+			
+			initialiseWithZeroMatrix(layer->traininfo->updatedWeightMat,layer->dim*layer->srcDim,sizeof(float)*layer->dim*layer->srcDim);
+			initialiseWithZeroFVector(layer->traininfo->updatedBiasMat,layer->dim,sizeof(float)*layer->dim);
+
+			assert(layer->rProp==NULL); 
+			layer->rProp = (RLink) malloc(sizeof(LayerRpropInfo));
+
+			layer->rProp->stepWght = CreateMatrix(layer->dim ,layer->srcDim);
+			layer->rProp->stepBias = CreateFloatVec(layer->dim);
+			setValueInMatrix(layer->rProp->stepWght,init_delta);
+			setValueInVec(layer->rProp->stepBias,init_delta);
+
+			layer->rProp->delWght =  CreateMatrix(layer->dim ,layer->srcDim);
+			layer->rProp->delbias =  CreateFloatVec(layer->dim);
+			initialiseWithZeroMatrix(layer->rProp->delWght,layer->dim*layer->srcDim,sizeof(float)*layer->dim*layer->srcDim);
+			initialiseWithZeroFVector(layer->rProp->delbias,layer->dim,sizeof(float)*layer->dim);
+		}
+		else if (layer->traininfo->updatedWeightMat == NULL || layer->traininfo->updatedBiasMat == NULL){
+			printf("Error something went wrong during the initialisation of updatedWeightMat and updateBiasMat in the layer %d \n",i);
+			exit(0);
+		}
+
+
+	}
+}	
+
 void shuffle(int *array, size_t n)
 {
     if (n > 1) 
@@ -638,6 +729,7 @@ void initialiseLayer(LELink layer,int i, LELink srcLayer){
 
 	layer->cgInfo =NULL; 
 	layer->gnInfo = NULL;
+	layer->rProp = NULL;
 
 
 	if (momentum > 0) {
@@ -670,9 +762,8 @@ void initialiseDNN(){
 	anndef->errorfunc = errfunc;
 	//initialise ErrElems of layers for back-propagation
 	initialiseErrElems(anndef);
-	if (doHF) {
-		setUpForHF(anndef);
-	}
+	if (doHF) setUpForHF(anndef);
+	else if (doRprop) setUpForRprop(anndef);
 }
 void initialise(){
 	printf("initialising DNN\n");
@@ -772,6 +863,29 @@ void initialiseWithZeroIVector(NIntVector * matrix, int dim,size_t size){
 	initialiseDeviceArrayWithZero(matrix->deviceElems,size);
 	#endif
 }
+void setValueInMatrix( NMatrix *matrix, float value){
+	#ifdef CUDA
+		setValueCUDA(matrix->deviceElems,matrix->row*matrix->col,value);
+	#else
+	int i;
+	for(i = 0 ; i <matrix->row*matrix->col;i++){
+		matrix->elems[i] = value;
+	}
+	#endif
+
+}
+void setValueInVec( NFVector *vector, float value){
+	#ifdef CUDA
+		setValueCUDA(vector->deviceElems,vector->len,value);
+	#else
+	int i;
+	for(i = 0 ; i <vector->len;i++){
+		vector->elems[i] = value;
+	}
+	#endif
+
+}
+
 
 //-------------------------------------------------------------------------------------------------------------------
 /* this section of the code presents library routines that are frequently used*/
@@ -912,6 +1026,15 @@ float computeSigmoid(float x){
 	float result;
 	result = 1/(1+ exp(-x));
 	return result;
+}
+
+float max(float a, float b){
+	if (a > b) return a;
+	else return b;
+}
+float min(float a, float b){
+	if (a < b) return a;
+	else return b;
 }
 
 void HNBlasNNgemm(int srcDim, int batchsamples, int dim, float alpha, NMatrix *weights, NMatrix *dyFeatMat, float beta, NMatrix *dxFeatMat){
@@ -1186,10 +1309,6 @@ void computeLossHessSoftMax(LELink layer){
 		//compute dia(yfeaVec - yfeacVec*yfeaVec)'
 
 		HNBlasNNgemm(layer->dim, layer->dim, 1, -1,yfeatVec , yfeatVec, 0, diaP);
-		printf("printing diaP\n");
-		printMatrix(diaP,layer->dim,layer->dim);
-		printf("printing yfeaVec\n");
-		printMatrix(yfeatVec,layer->dim,1);
 		#ifdef CBLAS
 		for (j = 0; j<layer->dim;j++){
 			diaP->elems[j*(layer->dim+1)] += yfeatVec->elems[j];
@@ -1205,11 +1324,6 @@ void computeLossHessSoftMax(LELink layer){
 			#endif
 
 		#endif
-		printf("printing diaP After addition\n");
-		printMatrix(diaP,layer->dim,layer->dim);
-		printf("printing result \n");
-		printVector(result,layer->dim);
-				
 		CopyVecToMat (result,0,layer->feaElem->yfeatMat,i*(layer->dim),layer->dim);
 		
 	}
@@ -1274,7 +1388,7 @@ void backPropBatch(ADLink anndef,Boolean doHessVecProd){
 			layer->errElem->dyFeatMat = layer->feaElem->yfeatMat;
 			/**normalisation because the cost function is mean log-likelihood*/
 			scaleMatrix(layer->feaElem->yfeatMat,(float)1/BATCHSAMPLES,BATCHSAMPLES*layer->dim);
-			printMatrix(layer->errElem->dyFeatMat,BATCHSAMPLES, layer->dim);
+			//printMatrix(layer->errElem->dyFeatMat,BATCHSAMPLES, layer->dim);
 		}else{
 			// from previous iteration dxfeat that is dyfeat now is dE/dZ.. computing dE/da
 			computeActivationDrv(layer); 
@@ -1282,13 +1396,8 @@ void backPropBatch(ADLink anndef,Boolean doHessVecProd){
 		
 		//compute dxfeatMat: the result  should be an array [ b1 b2..] where b1 is one of dim srcDim
 		HNBlasNNgemm(layer->srcDim, BATCHSAMPLES, layer->dim, 1, layer->weights, layer->errElem->dyFeatMat, 0, layer->errElem->dxFeatMat);	
-	//	printf("printing dxfeatMat >>>\n");
-	//	printMatrix(layer->errElem->dxFeatMat,BATCHSAMPLES,layer->srcDim);
 		//compute derivative with respect to weights: the result  should be an array of array of [ n1 n2] where n1 is of length srcDim
 		HNBlasNTgemm(layer->srcDim, layer->dim, BATCHSAMPLES, 1, layer->feaElem->xfeatMat,layer->errElem->dyFeatMat,0, layer->traininfo->dwFeatMat);
- 	//	printf("printing dwfeatMat >>>\n");
-	//	printMatrix(layer->traininfo->dwFeatMat,layer->dim,layer->srcDim);
-		
  		//compute dE/db
 		sumColsOfMatrix(layer->errElem->dyFeatMat,layer->traininfo->dbFeaMat, layer->dim, BATCHSAMPLES);
 	}
@@ -1444,8 +1553,13 @@ Boolean terminateSchedNotTrue(int currentEpochIdx,float lrnrate){
 	}
 	return TRUE; 
 }
+//------------------------------------------------------------------------------------------------------
+/** batch gradient descent training*/
+//------------------------------------------------------------------------------------------------------
 
 void TrainDNNGD(){
+	printf("TRAINING with BATCH Gradient Optmiser \n");
+	
 	clock_t start = clock();
 	int currentEpochIdx;
 	float learningrate;
@@ -1478,7 +1592,7 @@ void TrainDNNGD(){
 	
 
 	//with the initialisation of weights,checking how well DNN performs on validation data
-	printf("computing error on validation data\n");
+	printf("computing initial error on validation data\n");
 	setBatchSize(validationDataSetSize);
 	reinitLayerFeaMatrices(anndef);
 	//load  entire batch into neuralNet
@@ -1486,7 +1600,7 @@ void TrainDNNGD(){
 	fwdPassOfANN(anndef);
 	zero_one_error[currentEpochIdx] = updatateAcc(validationLabelIdx, anndef->layerList[anndef->layerNum-1],BATCHSAMPLES);
 	min_validation_error = zero_one_error[currentEpochIdx];
-	printf("validation error %lf \n ",zero_one_error[currentEpochIdx] );
+	printf("validation initial error %lf \n ",zero_one_error[currentEpochIdx] );
 		
 	initialiseParameterCaches(anndef);
 	while(terminateSchedNotTrue(currentEpochIdx,learningrate)){
@@ -1542,6 +1656,184 @@ void TrainDNNGD(){
  	printf("total time taken %lf \n ", seconds);
 	
 }
+
+//------------------------------------------------------------------------------------------------------
+/* batch Rprop training*/
+//------------------------------------------------------------------------------------------------------
+void IterOfRpropLayer(LELink layer,float cost, float oldcost){
+	#ifdef CUDA
+	printf("Rprop is CUDA mode\n");
+	singleIterationOfRprop_plus(layer->traininfo->dwFeatMat->deviceElems, layer->traininfo->updatedWeightMat->deviceElems, layer->rProp->stepWght->deviceElems, layer->rProp->delWght->deviceElems, layer->weights->deviceElems, cost, oldcost, eta_plus,eta_minus,delta_min, delta_max, layer->dim*layer->srcDim);
+ 	singleIterationOfRprop_plus(layer->traininfo->dbFeaMat->deviceElems, layer->traininfo->updatedBiasMat->deviceElems,layer->rProp->stepBias->deviceElems, layer->rProp->delbias->deviceElems, layer->bias->deviceElems, cost,  oldcost,  eta_plus, eta_minus, delta_min,delta_max,layer->dim);
+ 
+	#else
+ 	printf("Rprop is CPU mode\n");
+	
+	int i ,j;
+	float w,b;
+	int col = layer->weights->col;
+	int row = layer->weights->row;
+	for (i =0 ; i<row;i++) {
+		for (j =0; j < col;j++){
+			w = layer->traininfo->dwFeatMat->elems[i*col +j] * layer->traininfo->updatedWeightMat->elems[i*col+j];
+			if (w > 0){
+				layer->rProp->stepWght->elems[i*col+j] = min (layer->rProp->stepWght->elems[i*col+j]*eta_plus,delta_max);
+				layer->rProp->delWght->elems[i*col+j] = layer->traininfo->dwFeatMat->elems[i*col+j] >0 ? -1 * layer->rProp->stepWght->elems[i*col +j] :layer->rProp->stepWght->elems[i*col +j]; 
+				layer->weights->elems[i*col +j] += layer->rProp->delWght->elems[i*col+j];
+			}
+			else if (w < 0){
+				layer->rProp->stepWght->elems[i*col+j] = max (layer->rProp->stepWght->elems[i*col+j]*eta_minus,delta_min);
+				if(cost > oldcost ) layer->weights->elems[i*col +j] = layer->weights->elems[i*col +j]- layer->rProp->delWght->elems[i*col+j];
+				layer->traininfo->dwFeatMat->elems[i*col +j] = 0;	
+			}else{
+				layer->rProp->delWght->elems[i*col+j] = layer->traininfo->dwFeatMat->elems[i*col+j] >0 ? -1 * layer->rProp->stepWght->elems[i*col +j] :layer->rProp->stepWght->elems[i*col +j]; 
+				layer->weights->elems[i*col +j] += layer->rProp->delWght->elems[i*col+j];
+	
+			}
+		}
+
+		//updating bias
+		b = layer->traininfo->dbFeaMat->elems[i] * layer->traininfo->updatedBiasMat->elems[i];
+		if ( b > 0){
+			layer->rProp->stepBias->elems[i] = min (layer->rProp->stepBias->elems[i]*eta_plus,delta_max);
+			layer->rProp->delbias->elems[i] = layer->traininfo->dbFeaMat->elems[i] >0 ? -1 * layer->rProp->stepBias->elems[i] :layer->rProp->stepBias->elems[i]; 
+			layer->bias->elems[i] += layer->rProp->delbias->elems[i];		
+		}else if (b < 0){
+			layer->rProp->stepBias->elems[i] = max (layer->rProp->stepBias->elems[i]*eta_minus,delta_min);
+			if (cost >oldcost) layer->bias->elems[i] =  layer->bias->elems[i]- layer->rProp->delbias->elems[i];
+			layer->traininfo->dbFeaMat->elems[i] = 0;
+		}else {
+			layer->rProp->delbias->elems[i] = layer->traininfo->dbFeaMat->elems[i] >0 ? -1 * layer->rProp->stepBias->elems[i] :  layer->rProp->stepBias->elems[i];
+			layer->bias->elems[i] += layer->rProp->delbias->elems[i];		
+		}
+	}
+	#endif	
+}
+
+void updateWithRprop(ADLink anndef,float cost, float oldcost){
+	int i;
+	LELink layer;
+	for (i =(anndef->layerNum-1) ; i >=0; --i){
+		layer = anndef->layerList[i];
+		IterOfRpropLayer(layer,cost,oldcost);
+	}
+}
+void TrainDNNRprop(){
+	printf("TRAINING with Rprop Optmiser \n");
+	
+	clock_t start = clock();
+	int currentEpochIdx;
+	float min_validation_error ;
+	float cost ;
+	float oldcost;
+	
+	currentEpochIdx = 0;
+	min_validation_error = 1;
+
+	modelSetInfo = malloc (sizeof(MSI));
+	modelSetInfo->crtVal = 0;
+	modelSetInfo->bestValue = DBL_MAX;
+	modelSetInfo->prevCrtVal = 0;
+
+	//array to store the  training errors and validation error
+	float * log_likelihood  = malloc(sizeof(float)*(maxEpochNum+1));
+	float * zero_one_errorTraining =  malloc(sizeof(float)*(maxEpochNum+1));
+	float * zero_one_error =  malloc(sizeof(float)*(maxEpochNum+1));
+	
+	//compute negative-loglikelihood of training data
+	printf("computing initial the mean negative log-likelihood of training data \n");
+	loadDataintoANN(inputData,labelMat);
+	fwdPassOfANN(anndef);
+	log_likelihood[currentEpochIdx] = computeLogLikelihood(anndef->layerList[anndef->layerNum-1]->feaElem->yfeatMat,BATCHSAMPLES,anndef->layerList[numLayers-1]->dim,labels);
+	modelSetInfo->crtVal = log_likelihood[currentEpochIdx];
+	printf("initial the mean negative log-likelihood of training data %f \n",modelSetInfo->crtVal);
+	
+	if (modelSetInfo->crtVal < modelSetInfo->bestValue){
+		modelSetInfo->bestValue = modelSetInfo->crtVal;
+	}
+	zero_one_errorTraining[currentEpochIdx] = updatateAcc(labels, anndef->layerList[anndef->layerNum-1],BATCHSAMPLES);
+	
+
+	//with the initialisation of weights,checking how well DNN performs on validation data
+	printf("computing initial error on validation data\n");
+	setBatchSize(validationDataSetSize);
+	reinitLayerFeaMatrices(anndef);
+	//load  entire batch into neuralNet
+	loadDataintoANN(validationData,NULL);
+	fwdPassOfANN(anndef);
+	zero_one_error[currentEpochIdx] = updatateAcc(validationLabelIdx, anndef->layerList[anndef->layerNum-1],BATCHSAMPLES);
+	min_validation_error = zero_one_error[currentEpochIdx];
+	printf("validation error %lf \n ",zero_one_error[currentEpochIdx] );
+		
+	initialiseParameterCaches(anndef);
+	while(currentEpochIdx < maxEpochNum){
+		if (currentEpochIdx==0) cost = log_likelihood[currentEpochIdx];
+		else {
+			oldcost =  cost;
+			cost = computeLogLikelihood(anndef->layerList[anndef->layerNum-1]->feaElem->yfeatMat,BATCHSAMPLES,anndef->layerList[numLayers-1]->dim,labels);
+			log_likelihood[currentEpochIdx] = cost;
+		}		
+
+		printf("epoc number %d \n", currentEpochIdx);
+		//load training data into the ANN and perform forward pass
+		setBatchSize(trainingDataSetSize);
+		reinitLayerFeaMatrices(anndef);
+		loadDataintoANN(inputData,labelMat);
+		printf("computing gradient at epoch %d\n", currentEpochIdx);
+		fwdPassOfANN(anndef);
+		backPropBatch(anndef,FALSE);
+		printf("computed gradient at epoch %d\n", currentEpochIdx);
+		
+		updateWithRprop(anndef,cost,oldcost);
+		//cache current gradient
+		accumulateGradientsofANN(anndef);
+		printf("caching gradient at epoch %d\n", currentEpochIdx);
+		
+
+
+		modelSetInfo->prevCrtVal = modelSetInfo->crtVal;
+		modelSetInfo->crtVal = log_likelihood[currentEpochIdx];
+		printf("log_likelihood %lf \n ",modelSetInfo->crtVal );
+		zero_one_errorTraining[currentEpochIdx] = updatateAcc(labels, anndef->layerList[anndef->layerNum-1],BATCHSAMPLES);
+	
+
+		printf("checking the performance of the neural net on the validation data\n");
+		setBatchSize(validationDataSetSize);
+		reinitLayerFeaMatrices(anndef);
+		//perform forward pass on validation data and check the performance of the DNN on the validation dat set
+		loadDataintoANN(validationData,NULL);
+		fwdPassOfANN(anndef);
+		zero_one_error[currentEpochIdx] = updatateAcc(validationLabelIdx, anndef->layerList[anndef->layerNum-1],BATCHSAMPLES);
+		if (modelSetInfo->crtVal < modelSetInfo->bestValue){
+			modelSetInfo->bestValue = modelSetInfo->crtVal;
+		}	
+		if (zero_one_error[currentEpochIdx]<min_validation_error){
+				min_validation_error = zero_one_error[currentEpochIdx];
+				cacheParameters(anndef);
+		}
+		currentEpochIdx+=1;
+		
+		
+	}
+	clock_t end = clock();
+	printf("TRAINING ERROR >>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
+	printArray(log_likelihood,maxEpochNum+1);
+	printf("THE  VALIDATION RESULTS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
+	printArray(zero_one_error,maxEpochNum+1);
+	printf("The zero -one loss on training set >>>>>>>>>>>>>>>>>\n");
+	printArray(zero_one_errorTraining,maxEpochNum+1);
+	
+	printf("The minimum error on the validation data set is %lf percent  and min log_likelihood is %lf \n",min_validation_error*100, modelSetInfo->bestValue);
+	free(zero_one_error);
+	free(log_likelihood);
+	free(zero_one_errorTraining);
+	float seconds = (float)(end - start) / CLOCKS_PER_SEC;
+ 	printf("total time taken %lf \n ", seconds);
+}
+
+
+
+
 //------------------------------------------------------------------------------------------------------
 /**this segment of the code is reponsible for accumulating the gradients **/
 //------------------------------------------------------------------------------------------------------
@@ -2174,6 +2466,7 @@ void runConjugateGradient(){
 	free(costlist);
 }
 void TrainDNNHF(){
+	printf("TRAINING with Hessian Free Optmiser \n");
 	clock_t start = clock();
 	int currentEpochIdx;
 	float min_validation_error ;
@@ -2191,7 +2484,7 @@ void TrainDNNHF(){
 	float * zero_one_errorTraining =  malloc(sizeof(float)*(maxEpochNum+1));
 	float * zero_one_error =  malloc(sizeof(float)*(maxEpochNum+1));
 	//compute negative-loglikelihood of training data
-	printf("computing the mean negative log-likelihood of training data \n");
+	printf("computing initial the mean negative log-likelihood of training data \n");
 	loadDataintoANN(inputData,labelMat);
 	fwdPassOfANN(anndef);
 	log_likelihood[currentEpochIdx] = computeLogLikelihood(anndef->layerList[anndef->layerNum-1]->feaElem->yfeatMat,BATCHSAMPLES,anndef->layerList[numLayers-1]->dim,labels);
@@ -2204,7 +2497,7 @@ void TrainDNNHF(){
 	zero_one_errorTraining[currentEpochIdx] = updatateAcc(labels, anndef->layerList[anndef->layerNum-1],BATCHSAMPLES);
 	
     //with the initialisation of weights,checking how well DNN performs on validation data
-	printf("computing error on validation data\n");
+	printf("computing initial error on validation data\n");
 	setBatchSize(validationDataSetSize);
 	reinitLayerFeaMatrices(anndef);
 	//load  entire batch into neuralNet
@@ -2526,54 +2819,61 @@ void unitTests(){
 	NMatrix * vweightsH = malloc(sizeof(NMatrix));
 	float  vweightsHM[] ={0.775812455441121,0.598968296474700,0.557221023059154,0.299707632069582,0.547657254432423,0.991829829468103,0.483412970471810,0.684773696180478,0.480016831195868,0.746520774837809,0.211422430258003,0.248486726468514,0.0978390795725171,0.708670434511610,0.855745919278928,0.789034249923306,0.742842549759275,0.104522115223072,0.520874909265143,0.846632465315532,0.843613150651208,0.377747297699522,0.272095361461968,0.125303924302938,0.691352539306520,0.555131164040551,0.00847423194155961,0.416031807168918,0.439118205411470,0.784360645016731,0.829997491112413,0.589606438454759,0.142074038271687,0.593313383711502,0.726192799270104,0.428380358133696,0.210792055986133,0.265384268404268,0.993183755212665,0.480756369506705,0.827750131864470,0.603238265822881,0.817841681068066,0.955547170535556,0.650378193390669,0.627647346270778,0.646563331304311,0.0621331286917197,0.938196645878781,0.898716437594415,0.694859162934643,0.310406171229422,0.343545605630366,0.0762294431350499,0.519836940596257,0.608777321469077,0.727159960434458,7.39335770538752e-05,0.169766268796397,0.463291023631989,0.361852151271785,0.952065614552366,0.932193359196872,0.958068660798924,0.206538420408243,0.159700734052653,0.571760567030289,0.592919191548301,0.698610749870688,0.305813464081036,0.393851341078336,0.336885826085107,0.128993041260436,0.0869363561072062,0.548943348806040,0.317733245140830,0.992747576055697,0.723565253441235,0.572101390105790,0.717227171632155,0.976559227688336,0.426990558230810,0.913013771059024,0.897311254281181,0.835228567475913,0.0479581714127454,0.359280569413193,0.295753896108793,0.629125618231216,0.136183801688937,0.374045801279154,0.864781698209823,0.250273591941488,0.0295055785950556,0.999448971390378,0.605142675082282,0.244195121925386,0.438195271553610,0.735093567145817,0.557989092238218};	
 	vweightsH->elems = vweightsHM;
+	#ifdef CUDA
 	cudaMalloc(&vweightsH->deviceElems,memoryM);
 	SyncHost2Dev(vweightsH->elems,vweightsH->deviceElems,memoryM);
-
+	#endif
 	NFVector * vbaisH = malloc(sizeof(NFVector));
 	float vbaisHM[] ={0,0,0,0,0,0,0,0,0,0};
 	vbaisH->elems = vbaisHM ;
+	#ifdef CUDA
 	cudaMalloc(&vbaisH->deviceElems,memoryV);
 	SyncHost2Dev(vbaisH->elems,vbaisH->deviceElems,memoryV);
-
+	#endif
 
 	NMatrix * vweights0 = malloc(sizeof(NMatrix));
 	float  vweights0M[] ={0.775812455441121,0.598968296474700,0.557221023059154,0.299707632069582,0.547657254432423,0.991829829468103,0.483412970471810,0.684773696180478,0.480016831195868,0.746520774837809,0.211422430258003,0.248486726468514,0.0978390795725171,0.708670434511610,0.855745919278928,0.789034249923306,0.742842549759275,0.104522115223072,0.520874909265143,0.846632465315532,0.843613150651208,0.377747297699522,0.272095361461968,0.125303924302938,0.691352539306520,0.555131164040551,0.00847423194155961,0.416031807168918,0.439118205411470,0.784360645016731,0.829997491112413,0.589606438454759,0.142074038271687,0.593313383711502,0.726192799270104,0.428380358133696,0.210792055986133,0.265384268404268,0.993183755212665,0.480756369506705,0.827750131864470,0.603238265822881,0.817841681068066,0.955547170535556,0.650378193390669,0.627647346270778,0.646563331304311,0.0621331286917197,0.938196645878781,0.898716437594415,0.694859162934643,0.310406171229422,0.343545605630366,0.0762294431350499,0.519836940596257,0.608777321469077,0.727159960434458,7.39335770538752e-05,0.169766268796397,0.463291023631989,0.361852151271785,0.952065614552366,0.932193359196872,0.958068660798924,0.206538420408243,0.159700734052653,0.571760567030289,0.592919191548301,0.698610749870688,0.305813464081036,0.393851341078336,0.336885826085107,0.128993041260436,0.0869363561072062,0.548943348806040,0.317733245140830,0.992747576055697,0.723565253441235,0.572101390105790,0.717227171632155,0.976559227688336,0.426990558230810,0.913013771059024,0.897311254281181,0.835228567475913,0.0479581714127454,0.359280569413193,0.295753896108793,0.629125618231216,0.136183801688937,0.374045801279154,0.864781698209823,0.250273591941488,0.0295055785950556,0.999448971390378,0.605142675082282,0.244195121925386,0.438195271553610,0.735093567145817,0.557989092238218};	
 	vweights0->elems = vweights0M;
+	#ifdef CUDA
 	cudaMalloc(&vweights0->deviceElems,memoryM);
 	SyncHost2Dev(vweights0->elems,vweights0->deviceElems,memoryM);
-
+	#endif
 	
 	NFVector * vbias0 = malloc(sizeof(NFVector));
 	float vbaisOM[] ={0,0,0,0,0,0,0,0,0,0};
 	vbias0->elems = vbaisOM;
+	#ifdef CUDA
 	cudaMalloc(&vbias0->deviceElems,memoryV);
 	SyncHost2Dev(vbias0->elems,vbias0->deviceElems,memoryV);
-
+	#endif
 
 
 	NMatrix * data = malloc(sizeof(NMatrix));
 	float dataM[] ={0.254790156597005,0.224040030824219,0.667832727013717,0.844392156527205,0.344462411301042,0.780519652731358,0.675332065747000,0.00671531431847749,0.602170487581795,0.386771194520985,0.915991244131425,0.00115105712910724,0.462449159242329,0.424349039815375,0.460916366028964,0.770159728608609,0.322471807186779,0.784739294760742,0.471357153710612,0.0357627332691179};
 	data->elems = dataM;
+	#ifdef CUDA
 	cudaMalloc(&data->deviceElems, sizeof(float)*10*2);
 	SyncHost2Dev(data->elems,data->deviceElems,memoryV*2);
-
+	#endif
 
 	NIntVector * labels = malloc(sizeof(NIntVector));
 	int * labelsV = malloc(sizeof(int)*2);
 	labelsV[0] =4;
 	labelsV[1] =1;
 	labels->elems = labelsV;
+	#ifdef CUDA
 	cudaMalloc(&labels->deviceElems,sizeof(int)*2);
 	SyncHost2Dev(labels->elems,labels->deviceElems,sizeof(int)*2);
-
+	#endif
 
 
 	NMatrix * labmat = malloc(sizeof(NMatrix));
 	float labmatM[] ={0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0};
 	labmat->elems = labmatM;
+	#ifdef CUDA
 	cudaMalloc(&labmat->deviceElems,sizeof(float)*20);
 	SyncHost2Dev(labmat->elems,labmat->deviceElems,sizeof(float)*20);
-
+	#endif
 
 	numLayers = 2;
 	hidUnitsPerLayer = malloc(sizeof(int)*numLayers);
@@ -2601,9 +2901,10 @@ void unitTests(){
 	NMatrix * Weight = malloc(sizeof(NMatrix));
 	float weight [] ={-0.33792351, 0.13376346, -0.06821584,0.31259467,0.30669813, -0.24911232,-0.24487114,0.3306844, 0.50186652,0.41181357,-0.15575338,0.00109011,0.20097358,0.2330034,-0.14213318,0.06703706, 0.00337744, -0.53263998,0.29886659,0.41916242,-0.14800999,0.12641018, -0.46514654, -0.1436961, 0.47448121,0.16582645,-0.11260893,0.31628802, -0.20064598,0.07459834, 0.4043588,-0.06991851,0.33098616, -0.39023389,0.22375668,0.22410759,-0.30804781,0.46541917 ,-0.06338163,0.44838317,-0.48220484, -0.34584617, -0.49584745,0.19157248,0.10365625,0.03648946,-0.50026342,0.06729657, -0.18658887,0.00325,-0.42514847,0.11742482,0.07223874, -0.5403129, 0.12865095,0.451458, 0.31825324,0.53904824,0.50259215,0.31983069,-0.23524579,0.13683939, -0.02399704, -0.33337114, -0.12891477, -0.48870689,-0.05296651,0.52800974, -0.41195013, -0.41694734, 0.26128892,0.09563634, -0.031075, -0.43037101, -0.2966262, 0.4381399,-0.09119193,0.03927353, -0.54092147, -0.21838607,-0.06913007,0.12285307,0.45811304,0.13773762,0.22565903,-0.38358795,0.26954896,0.36259999,0.14648924, -0.06757814,-0.38058746,0.07493898,0.03091815,0.49451543, -0.02151544,0.00280386, 0.04039804,0.34966835, -0.48515551,0.18559222};
 	Weight->elems = weight;
+	#ifdef CUDA
 	cudaMalloc(&Weight->deviceElems,memoryM);
 	SyncHost2Dev(Weight->elems,Weight->deviceElems,memoryM);
-
+	#endif
 	printf("input data >>>>>\n");
 	printMatrix(anndef->layerList[0]->feaElem->xfeatMat,BATCHSAMPLES,anndef->layerList[0]->dim);
 	
@@ -2692,26 +2993,33 @@ void unitTests(){
 	
 	minBatchLabels =labels;
 	runConjugateGradient();
-	
+	#ifdef CUDA
 	DevDispose(Weight->deviceElems);
+	#endif
 	free(Weight);
-	
+	#ifdef CUDA
 	DevDispose(vweightsH->deviceElems);
+	#endif
 	free(vweightsH);
-	
+	#ifdef CUDA
 	DevDispose(vweights0->deviceElems);
+	#endif
 	free(vweights0);
-	
+	#ifdef CUDA
 	DevDispose(vbaisH->deviceElems);
+	#endif
 	free(vbaisH);
-	
+	#ifdef CUDA
 	DevDispose(vbias0->deviceElems);
+	#endif
 	free(vbias0);
-	
+	#ifdef CUDA
 	DevDispose(data->deviceElems);
+	#endif
 	free(data);
-	
+	#ifdef CUDA
 	DevDispose(labmat->deviceElems);
+	#endif
 	free(labmat);
 
 	printf("Successfully freed local matrices\n");
@@ -2729,10 +3037,10 @@ int main(int argc, char *argv[]){
 	StartCUDA();
 	#endif
 	
-	unitTests();
+	//unitTests();
 	
 	
-	exit(0);
+	//exit(0);
 	/**testing gauss newton product**/
 	if (argc != 11 && argc != 13 ){
 		printf("The program expects a minimum of  5 args and a maximum of 6 args : Eg : -C config \n -S traindatafile \n -L traininglabels \n -v validationdata \n -vl validationdataLabels \n optional argument : -T testData \n ");
@@ -2740,7 +3048,7 @@ int main(int argc, char *argv[]){
 	}
 	parseCMDargs(argc, argv);
 	//exit(0);
-	initialise();
+	//initialise();
 	/*NMatrix * Wtest = malloc (sizeof(NMatrix));
 	float  * W = malloc(sizeof(float )*784*500);
 	for (int i =0 ; i< 784*500;i++){
@@ -2749,20 +3057,20 @@ int main(int argc, char *argv[]){
 	} 
 	Wtest->elems = W;*/
 	//free(W);
-	NMatrix * Wtest;
+	/*NMatrix * Wtest;
 	Wtest = CreateMatrix(500,784); 
 	//float  * W = malloc(sizeof(float )*100);
 	int i;
 	for ( i =0 ; i< 500*784;i++){
 		Wtest->elems[i] = 0.03; 
 	
-	} 
+	} */
 	//Wtest->elems = W;
 	//printMatrix(Wtest,10,10);
 	//free(W);
 	
-	CopyMatrix (Wtest,0,anndef->layerList[0]->weights,0,anndef->layerList[0]->dim*anndef->layerList[0]->srcDim);
-    free(Wtest);
+	//CopyMatrix (Wtest,0,anndef->layerList[0]->weights,0,anndef->layerList[0]->dim*anndef->layerList[0]->srcDim);
+    //free(Wtest);
     /*
     loadDataintoANN(inputData,labelMat);
 	normOfWeights(anndef);
@@ -2788,14 +3096,12 @@ int main(int argc, char *argv[]){
 	
 	
 	
-	//initialise();
+	initialise();
 	
 
-	if (doHF){
-		TrainDNNHF();
-	}else{
-		TrainDNNGD();
-	}
+	if (doHF) TrainDNNHF();
+	else if (doRprop) TrainDNNRprop();
+	else TrainDNNGD();
 	
 	freeMemoryfromANN();
 

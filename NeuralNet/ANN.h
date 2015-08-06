@@ -14,6 +14,7 @@ typedef struct _ErrorElem *ERLink;
 typedef struct _TrainInfo *TRLink;
 typedef struct _GaussNewtonProdInfo *GNProdInfo;
 typedef struct _ConjugateGradientInfo *CGInfo;
+typedef struct _LayerRpropInfo *RLink;
 typedef struct _MSI *MSLink;
 
 typedef struct _NMatrix{
@@ -61,6 +62,14 @@ typedef struct _GaussNewtonProdInfo{
    	NMatrix * Ractivations;
 }GaussNewtonProductInfo ;
 
+typedef struct _LayerRpropInfo{
+	NMatrix * stepWght;
+	NFVector * stepBias;
+	NMatrix * delWght;
+	NFVector *delbias;
+
+}LayerRpropInfo;
+
 typedef struct _TrainInfo{
 	NMatrix * dwFeatMat; /* dE/dw matrix*/
 	NFVector * dbFeaMat; /* dE/db  vector */
@@ -93,6 +102,7 @@ typedef struct _LayerElem{
 	FELink feaElem; /* stores the  input activations coming into the layer as well the output activations going out from the layer */
 	ERLink errElem;
 	TRLink traininfo;/*struct that stores the error derivatives with respect to weights and biases */
+	RLink rProp; /*struct that stores individual step updates when we employ Rprop*/ 
 	GNProdInfo gnInfo;
 	CGInfo  cgInfo;
 	NMatrix * bestweights;
@@ -158,7 +168,8 @@ void DisposeIntVec(NIntVector *vector);
 void initialiseWithZeroMatrix(NMatrix * matrix, int dim,size_t size);
 void initialiseWithZeroFVector(NFVector * matrix, int dim,size_t size);
 void initialiseWithZeroIVector(NIntVector * matrix, int dim,size_t size);
-
+void setValueInMatrix( NMatrix *matrix, float value);
+void setValueInVec( NFVector *vector, float value);
 //-------------------------------------------------------------------------------------------------------------------
 /* this section of the code presents auxilary functions that are required*/
 //-------------------------------------------------------------------------------------------------------------------
@@ -175,6 +186,8 @@ void scaleVec(NFVector * Mat, float scale ,int dim);
 void subtractMatrix(NMatrix *dyfeat, NMatrix* labelMat, int dim, float lambda);
 float computeTanh(float x);
 float computeSigmoid(float x);
+float max(float a, float b);
+float min(float a, float b);
 void HNBlasNNgemm(int srcDim, int batchsamples, int dim, float alpha, NMatrix *weights, NMatrix *dyFeatMat, float beta, NMatrix *dxFeatMat);
 void HNBlasNTgemm(int srcDim, int dim,  int batchsamples, float alpha , NMatrix* xfeatMat, NMatrix * dyFeatMat, float beta, NMatrix * dwFeatMat);
 float computeDotProductMatrix(NMatrix * vectorL, NMatrix * vectorR,int dim);
@@ -215,7 +228,17 @@ float updatateAcc(NIntVector * labels, LELink layer,int dataSize);
 void updateNeuralNetParams(ADLink anndef, float lrnrate, float momentum, float weightdecay);
 void updateLearningRate(int currentEpochIdx, float * lrnRate);
 Boolean terminateSchedNotTrue(int currentEpochIdx,float lrnrate);
+//------------------------------------------------------------------------------------------------------
+/** batch gradient descent training*/
+//------------------------------------------------------------------------------------------------------
 void TrainDNNGD();
+
+//------------------------------------------------------------------------------------------------------
+/* batch Rprop training*/
+//------------------------------------------------------------------------------------------------------
+void IterOfRpropLayer(LELink layer,float cost, float oldcost);
+void updateWithRprop(ADLink anndef,float cost, float oldcost);
+void TrainDNNRprop();
 
 //------------------------------------------------------------------------------------------------------
 /**this segment of the code is reponsible for accumulating the gradients **/
