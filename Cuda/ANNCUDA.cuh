@@ -29,7 +29,7 @@ void ScaleNSegmentCUDA(int segLen, float scale, float * valPtr);
 void SubNSegmentCUDA(float *srcPtr, int segLen, float *dstPtr,float lambda);
 void CopyMatrixOrVecCUDA(float * src , float *dest, int dim);
 float computeDotProductCUDA(float * vectorL, float * vectorR,int dim,float  result);
-
+void setValueCUDA(float * devarray, int dim , float value);
 //-------------------------------------------------------------------------------------------------------------------
 /*The following routines are used for forward propagation*/
 //-------------------------------------------------------------------------------------------------------------------
@@ -53,6 +53,12 @@ void HNBlasNTgemmCUDA(int m, int n, int k, float alpha, float *A, float *B, floa
 //-------------------------------------------------------------------------------------------------------------------
 void AddElementstoDiagonalOfMatrix(float * lhs , float * rhs , int dim, float * dst);
 void computeMatVecProductCUDA(int m ,int n, float alpha, float * A, int lda, float * B,int incx, float beta, float * C, int incy );
+
+
+//-------------------------------------------------------------------------------------------------------------------
+/*The following routines are used for individual parameter update through Rprop*/
+//-------------------------------------------------------------------------------------------------------------------
+void singleIterationOfRprop_plus(float * grad, float * cachedgrad, float* stepsize, float *delupdates, float * param, float cost, float oldcost, float eta_plus,float eta_minus,float delta_min,float delta_max,int dim);
 
 void unitTestsCUDA();
 

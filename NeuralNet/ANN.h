@@ -315,4 +315,5 @@ void printMatrix(NMatrix * matrix,int row,int col);
 void printDBWeights(ADLink anndef, int i);
 
 /*This function is used to check the correctness of various routines */
+void unitTestofIterRprop(int iter);
 void unitTests();

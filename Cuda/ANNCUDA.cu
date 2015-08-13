@@ -112,6 +112,25 @@ float computeDotProductCUDA(float * vectorL, float * vectorR,int dim,float  resu
     }
     return result;
 }
+
+__global__ void  Hkern_SetValue(float * devarray, int dim , float value){
+    int pos = 0 ;
+    pos = (blockIdx.x * blockDim.x) + threadIdx.x;
+    if (pos < dim) {
+        devarray[pos] = value;
+    }
+}
+void setValueCUDA(float * devarray, int dim , float value){
+    int nBlocks;
+    nBlocks = CEIL(dim, THREADPERBLOCK);
+    if (nBlocks > MAXBLOCKNUM){
+        printf("ApplySigmoidActCUDA: Block number exceeds the maximum\n");
+        exit(0);
+    }
+    Hkern_SetValue<<<nBlocks,THREADPERBLOCK>>>(devarray,dim,value);    
+
+
+}
 //-------------------------------------------------------------------------------------------------------------------
 /*The following routines are used for forward propagation*/
 //-------------------------------------------------------------------------------------------------------------------
@@ -324,6 +343,44 @@ void computeMatVecProductCUDA(int m ,int n, float alpha,float * A, int lda, floa
         exit(0);
     }        
 }
+
+//-------------------------------------------------------------------------------------------------------------------
+/*The following routines are used for individual parameter update through Rprop*/
+//-------------------------------------------------------------------------------------------------------------------
+__global__ void HKern_singleIterationOfRprop_plus(float * grad, float * cachedgrad, float* stepsize, float *delupdates, float * param, float cost, float oldcost, float eta_plus,float eta_minus,float delta_min,float delta_max,int dim){
+    int pos;
+    float v;
+    pos = (blockIdx.x * blockDim.x) + threadIdx.x;
+    if (pos<dim){
+        v = grad[pos] * cachedgrad[pos];
+        if (v > 0){
+            stepsize[pos] = min(stepsize[pos]*eta_plus, delta_max);
+            delupdates[pos] = grad[pos] > 0 ? -1 * stepsize[pos] : stepsize[pos];
+            param[pos]+= delupdates[pos];
+        }else if (v < 0){
+            stepsize[pos] = max (stepsize[pos]*eta_minus,delta_min);
+            if (cost > oldcost) param[pos] =  param[pos] - delupdates[pos];
+            grad[pos] = 0;
+        }else {
+            delupdates[pos] = grad[pos] > 0 ? -1 * stepsize[pos] : stepsize[pos];
+            delupdates[pos] = grad[pos] ==0 ? 0: delupdates[pos];
+            param[pos]+= delupdates[pos];
+        }
+
+    }
+
+}
+
+void singleIterationOfRprop_plus(float * grad, float * cachedgrad, float* stepsize, float *delupdates, float * param, float cost, float oldcost, float eta_plus,float eta_minus,float delta_min,float delta_max,int dim){
+    int nBlocks;
+    nBlocks = CEIL(dim, THREADPERBLOCK);
+    if (nBlocks > MAXBLOCKNUM){
+        printf("ApplySigmoidActCUDA: Block number exceeds the maximum\n");
+        exit(0);
+    }
+    HKern_singleIterationOfRprop_plus<<<nBlocks,THREADPERBLOCK>>>(grad,cachedgrad,stepsize,delupdates,param,cost,oldcost,eta_plus,eta_minus,delta_min,delta_max,dim);
+}
+
 void unitTestsCUDA(){
 
     cudaError_t cudaStat ; // cudaMalloc status
